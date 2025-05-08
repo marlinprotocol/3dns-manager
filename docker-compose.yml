@@ -1,0 +1,19 @@
+services:
+  caddy:
+    image: namanmonga/oyster-fe-kit:latest
+    network_mode: host
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+  dns-manager:
+    image: namanmonga/dns-manager:latest
+    network_mode: host
+    environment:
+      - DOMAIN_NAME=cyborg13.xyz
+    volumes:
+      - caddy_data:/data
+
+volumes: 
+  caddy_data:
+  caddy_config: 
