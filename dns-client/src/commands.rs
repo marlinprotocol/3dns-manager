@@ -2,7 +2,6 @@ use crate::contract_interaction;
 use eyre::Result;
 use reqwest;
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct DnsRecordResponse {
@@ -54,14 +53,22 @@ async fn query_and_set_dns_record(
     let response_text = response.text().await?;
     println!("Response: {}", response_text);
     
-    let record_data: DnsRecordResponse = serde_json::from_str(&response_text)?;
-    println!("Received record: {}", record_data.dns_record);
+    // Parse the response which is in format "data:signature"
+    let parts: Vec<&str> = response_text.split(':').collect();
+    if parts.len() != 2 {
+        return Err(eyre::eyre!("Invalid response format, expected 'data:signature'"));
+    }
+    
+    let dns_record = parts[0].to_string();
+    let signature = parts[1].to_string();
+    
+    println!("Received record: {}", dns_record);
     
     // Call the contract to set the DNS record
     contract_interaction::call_set_dns_records(
         domain.to_string(),
-        record_data.dns_record,
-        record_data.signature,
+        dns_record,
+        signature,
         contract_address.to_string(),
         rpc_url.to_string(),
         wallet_private_key.to_string(),

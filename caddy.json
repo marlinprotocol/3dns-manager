@@ -17,7 +17,7 @@
           "listen": [":80", ":443"],
           "routes": [{
             "match": [{
-              "host": ["hello.cyborg13.xyz"]
+              "host": ["cyborg13.xyz"]
             }],
             "handle": [{
               "handler": "file_server",
