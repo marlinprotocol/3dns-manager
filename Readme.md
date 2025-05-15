@@ -16,7 +16,7 @@ This project provides tools to manage frontend deployments using Oyster CVM and 
 ```
 oyster-fe-manager/
 ├── dns-client/        # Rust client for DNS record management
-├── dns-client/        # Rust manager to run inside the enclave      
+├── dns-manager/        # Rust manager to run inside the enclave      
 ├── caddy.json         # Caddy server configuration
 └── README.md          # This file
 ```
@@ -25,8 +25,8 @@ oyster-fe-manager/
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd oyster-fe-manager
+git clone https://github.com/marlinprotocol/3dns-manager
+cd 3dns-manager
 ```
 
 2. Build the DNS client:
@@ -54,7 +54,6 @@ Key parameters explained:
 - `docker-compose.yml`: Configuration file for the services
 - `arch`: CPU architecture (amd64 for most AWS instances)
 - `instance-type`: AWS EC2 instance type
-- `operator`: Ethereum address of the operator
 - `region`: AWS region for deployment
 
 2. After deployment, note down the enclave IP address from the deployment output. You'll need this for setting DNS records.
@@ -83,7 +82,7 @@ dns-client set-dns \
 To delegate WHOIS management to another wallet:
 
 ```bash
-dns-client set-whois-delegation \
+dns-client set-whois \
   --domain <your-domain> \
   --delegate-wallet-address <delegate-address> \
   --contract-address <contract-address> \
