@@ -103,19 +103,19 @@ impl ACMEManager {
             &self.default_user
         )?;
         
+        // NOTE: Assumes letsencrypt.org is the only CA
         Ok(format!("0 issue \"letsencrypt.org; accounturi={}\"", acme_id))
     }
 
-    pub fn get_acme_id_by_acme(&self, acme_dir: &str) -> Result<BinderResponse, SignerError> {
+    pub fn get_acme_id_by_acme(&self, acme_dir: &str) -> Result<String, SignerError> {
         let acme_id = self.get_ca_id(
             acme_dir, 
             &self.default_email, 
             &self.default_user
         )?;
-        
-        Ok(BinderResponse {
-            acme_id,
-        })
+
+        // NOTE: Assumes letsencrypt.org is the only CA
+        Ok(format!("0 issue \"letsencrypt.org; accounturi={}\"", acme_id))
     }
 
     pub fn get_acme_id_by_all(&self, acme_dir: &str, email: &str, user: &str) -> Result<BinderResponse, SignerError> {
