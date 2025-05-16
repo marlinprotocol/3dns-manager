@@ -35,52 +35,52 @@ async fn main() -> Result<()> {
     // Share signer with routes
     let signer_filter = warp::any().map(move || signer.clone());
 
-    // GET /a-record
-    let a_record_route = warp::path("a-record")
+    // GET /dns-records
+    let dns_records_route = warp::path("dns-records")
         .and(warp::get())
         .and(signer_filter.clone())
-        .and_then(get_encoded_a_record);
+        .and_then(get_encoded_dns_records);
 
     // Create a filter for sharing acme
     let acme_filter = warp::any().map(move || acme.clone());
 
-    // GET /caa-record
-    let caa_record_route = warp::path("caa-record")
+    // GET /caa-records
+    let caa_record_route = warp::path("caa-records")
         .and(warp::get())
         .and(acme_filter)
         .and(signer_filter.clone())
-        .and_then(get_encoded_ca_record);
+        .and_then(get_encoded_caa_records);
 
     // Combine routes
-    let routes = a_record_route.or(caa_record_route);
+    let routes = dns_records_route.or(caa_record_route);
 
     // Start the server
     let server = warp::serve(routes).run(([0, 0, 0, 0], port));
-    
+    println!("Server started");
     // Run server
     server.await;
 
     Ok(())
 }
 
-/// Generate and encode A record
-async fn get_encoded_a_record(signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
-    match generate_encoded_a_record(signer).await {
+/// Generate and encode DNS records
+async fn get_encoded_dns_records(signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
+    match generate_encoded_dns_records(signer).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
         Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),
     }
 }
 
-/// Generate and encode CAA record
-async fn get_encoded_ca_record(acme: String, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
-    match generate_encoded_caa_record(&acme, signer).await {
+/// Generate and encode CAA records
+async fn get_encoded_caa_records(acme: String, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
+    match generate_encoded_caa_records(&acme, signer).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
         Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),
     }
 }
 
-/// Generate encoded A record
-async fn generate_encoded_a_record(signer: Arc<Signer>) -> Result<String> {
+/// Generate encoded DNS records
+async fn generate_encoded_dns_records(signer: Arc<Signer>) -> Result<String> {
     println!("Fetching public IP...");
     let ip = get_public_ip().await;
     println!("Current Public IP: {}", ip);
@@ -110,8 +110,8 @@ async fn generate_encoded_a_record(signer: Arc<Signer>) -> Result<String> {
     Ok(format!("{}:{}", encoded_records, signature))
 }
 
-/// Generate encoded CAA record
-async fn generate_encoded_caa_record(acme: &str, signer: Arc<Signer>) -> Result<String> {
+/// Generate encoded CAA records
+async fn generate_encoded_caa_records(acme: &str, signer: Arc<Signer>) -> Result<String> {
     println!("Generating CAA record...");
     let domain = env::var("DOMAIN_NAME").expect("DOMAIN_NAME must be set");
 

@@ -104,3 +104,7 @@ dns-client set-whois \
    - DNS propagation time (can take up to 24 hours)
    - Enclave connectivity
 
+## Future work
+
+* Subdomain Managment
+* Add mechanisms for delays between setting CAA record and A record to avoid race conditions in record propagation
