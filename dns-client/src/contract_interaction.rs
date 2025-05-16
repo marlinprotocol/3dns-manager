@@ -6,8 +6,8 @@ use alloy::{
     sol,
 };
 use eyre::Result;
-use url::Url;
 use hex;
+use url::Url;
 
 // Define the ABI for the setDNSRecords function
 // Replace with your actual contract ABI loading mechanism if needed
@@ -19,6 +19,28 @@ sol! {
     }
 }
 
+fn namehash(domain: &str) -> B256 {
+    let mut node = B256::ZERO;
+    if domain.is_empty() {
+        return node;
+    }
+
+    let labels: Vec<&str> = domain.split('.').rev().collect();
+
+    for label in labels {
+        let label_hash = keccak256(label.as_bytes());
+
+        let mut combined = [0u8; 64];
+        combined[..32].copy_from_slice(node.as_slice());
+        combined[32..].copy_from_slice(label_hash.as_slice());
+
+        node = keccak256(&combined);
+    }
+
+    node
+}
+
+
 pub async fn set_whois_delegatee(
     domain: String,
     contract_address: String,
@@ -27,16 +49,18 @@ pub async fn set_whois_delegatee(
     delegate_address: String,
 ) -> Result<()> {
     // Create domain id by hashing the domain
-    let domain_id = keccak256(domain.as_bytes());
+    // let domain_id = keccak256(domain.as_bytes());
+    let domain_id = namehash(&domain);
+    println!("Domain ID: {:?}", domain_id);
 
     // Parse delegate address
-    let delegatee = delegate_address.parse::<Address>()
+    let delegatee = delegate_address
+        .parse::<Address>()
         .expect("Failed to parse delegate address");
 
     // Decode private key
-    let private_key = B256::from_slice(
-        &hex::decode(wallet_private_key).expect("Failed to decode private key"),
-    );
+    let private_key =
+        B256::from_slice(&hex::decode(wallet_private_key).expect("Failed to decode private key"));
 
     // Create signer
     let signer = PrivateKeySigner::from_bytes(&private_key)
@@ -50,9 +74,10 @@ pub async fn set_whois_delegatee(
         .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
 
     // Create contract instance
-    let contract_addr = contract_address.parse::<Address>()
+    let contract_addr = contract_address
+        .parse::<Address>()
         .expect("Failed to parse contract address");
-    
+
     // Create a DnsManager instance
     let dns_manager = DnsManager::new(contract_addr, provider.clone());
 
@@ -72,10 +97,15 @@ pub async fn set_whois_delegatee(
         .ok_or_else(|| eyre::eyre!("Transaction receipt not found"))?;
 
     if !receipt.status() {
-        return Err(eyre::eyre!("Transaction failed - check contract interaction"));
+        return Err(eyre::eyre!(
+            "Transaction failed - check contract interaction"
+        ));
     }
 
-    println!("Successfully set WHOIS delegatee. Transaction hash: {:?}", tx_hash);
+    println!(
+        "Successfully set WHOIS delegatee. Transaction hash: {:?}",
+        tx_hash
+    );
     Ok(())
 }
 
@@ -88,18 +118,17 @@ pub async fn call_set_dns_records(
     wallet_private_key: String,
 ) -> Result<()> {
     // Create domain id by hashing the domain
-    let domain_id = keccak256(domain.as_bytes());
+    let domain_id = namehash(&domain);
 
     // Convert encoded_records to bytes
     let records_bytes = Bytes::from(encoded_records.as_bytes().to_vec());
-    
+
     // Convert signature to bytes
     let signature_bytes = Bytes::from(signature.as_bytes().to_vec());
 
     // Decode private key
-    let private_key = B256::from_slice(
-        &hex::decode(wallet_private_key).expect("Failed to decode private key"),
-    );
+    let private_key =
+        B256::from_slice(&hex::decode(wallet_private_key).expect("Failed to decode private key"));
 
     // Create signer
     let signer = PrivateKeySigner::from_bytes(&private_key)
@@ -113,9 +142,10 @@ pub async fn call_set_dns_records(
         .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
 
     // Create contract instance
-    let contract_addr = contract_address.parse::<Address>()
+    let contract_addr = contract_address
+        .parse::<Address>()
         .expect("Failed to parse contract address");
-    
+
     // Create a DnsManager instance
     let dns_manager = DnsManager::new(contract_addr, provider.clone());
 
@@ -135,10 +165,14 @@ pub async fn call_set_dns_records(
         .ok_or_else(|| eyre::eyre!("Transaction receipt not found"))?;
 
     if !receipt.status() {
-        return Err(eyre::eyre!("Transaction failed - check contract interaction"));
+        return Err(eyre::eyre!(
+            "Transaction failed - check contract interaction"
+        ));
     }
 
-    println!("Successfully updated DNS records. Transaction hash: {:?}", tx_hash);
+    println!(
+        "Successfully updated DNS records. Transaction hash: {:?}",
+        tx_hash
+    );
     Ok(())
 }
-

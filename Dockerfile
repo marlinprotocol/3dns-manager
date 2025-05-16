@@ -1,4 +1,4 @@
-FROM caddy:2.7-alpine
+FROM caddy:2.10
 
 # Copy the JSON config
 COPY caddy.json /etc/caddy/config.json
