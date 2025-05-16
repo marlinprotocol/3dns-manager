@@ -108,3 +108,5 @@ dns-client set-whois \
 
 * Subdomain Managment
 * Add mechanisms for delays between setting CAA record and A record to avoid race conditions in record propagation
+* TTL for records should be configurable
+* Expand support to ACME services apart from letsencrypt
