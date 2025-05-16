@@ -1,4 +1,5 @@
 use crate::contract_interaction;
+use alloy::contract;
 use eyre::Result;
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -92,3 +93,19 @@ pub async fn handle_set_whois_delegation(domain: &str, delegate_wallet_address: 
     
     Ok(())
 } 
+
+/// Handles the "transfer domain" command
+pub async fn handle_transfer_domain(domain: &str, new_owner_wallet_address: &str, contract_address: &str, wallet_private_key: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    contract_interaction::transfer_domain(
+        domain.to_string(), 
+        new_owner_wallet_address.to_string(), 
+        contract_address.to_string(),
+        rpc_url.to_string(), 
+        wallet_private_key.to_string()
+    ).await?;
+    
+    Ok(())
+}

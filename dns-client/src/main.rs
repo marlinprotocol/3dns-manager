@@ -28,7 +28,7 @@ enum Commands {
         contract_address: String,
         
         /// Wallet private key
-        #[arg(long)]
+        #[arg(long, short='p')]
         wallet_private_key: String,
     },
     
@@ -48,7 +48,27 @@ enum Commands {
         contract_address: String,
         
         /// Wallet private key
-        #[arg(long)]
+        #[arg(long, short='p')]
+        wallet_private_key: String,
+    },
+
+    /// Transfer domain ownership
+    #[command(name = "transfer-domain")]
+    TransferDomain {
+        /// Domain ID
+        #[arg(long, short)]
+        domain: String,
+        
+        /// New owner wallet address
+        #[arg(long, short)]
+        new_owner_wallet_address: String,
+
+        /// Smart contract address for domain controller
+        #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
+        contract_address: String,
+        
+        /// Wallet private key
+        #[arg(long, short='p')]
         wallet_private_key: String,
     },
 }
@@ -66,6 +86,11 @@ async fn main() {
         Some(Commands::SetWhois { domain, delegate_wallet_address, contract_address, wallet_private_key }) => {
             if let Err(e) = commands::handle_set_whois_delegation(domain, delegate_wallet_address, contract_address, wallet_private_key).await {
                 eprintln!("Error setting WHOIS delegation: {}", e);
+            }
+        },
+        Some(Commands::TransferDomain { domain, new_owner_wallet_address, contract_address, wallet_private_key }) => {
+            if let Err(e) = commands::handle_transfer_domain(domain, new_owner_wallet_address,  contract_address, wallet_private_key).await {
+                eprintln!("Error transferring domain: {}", e);
             }
         },
         None => {
