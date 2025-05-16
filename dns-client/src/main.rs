@@ -24,7 +24,7 @@ enum Commands {
         enclave_ip: String,
         
         /// Smart contract address
-        #[arg(long)]
+        #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
         contract_address: String,
         
         /// Wallet private key
@@ -44,7 +44,7 @@ enum Commands {
         delegate_wallet_address: String,
         
         /// Smart contract address
-        #[arg(long)]
+        #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
         contract_address: String,
         
         /// Wallet private key
@@ -64,6 +64,26 @@ enum Commands {
         new_owner_wallet_address: String,
 
         /// Smart contract address for domain controller
+        #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
+        contract_address: String,
+        
+        /// Wallet private key
+        #[arg(long, short='p')]
+        wallet_private_key: String,
+    },
+
+    /// Set KMS contract address
+    #[command(name = "set-kms")]
+    SetKms {
+        /// Domain ID
+        #[arg(long)]
+        domain: String,
+
+        /// KMS contract address
+        #[arg(long, short='k')]
+        kms_contract_address: String,
+        
+        /// Smart contract address
         #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
         contract_address: String,
         
@@ -91,6 +111,11 @@ async fn main() {
         Some(Commands::TransferDomain { domain, new_owner_wallet_address, contract_address, wallet_private_key }) => {
             if let Err(e) = commands::handle_transfer_domain(domain, new_owner_wallet_address,  contract_address, wallet_private_key).await {
                 eprintln!("Error transferring domain: {}", e);
+            }
+        },
+        Some(Commands::SetKms { domain, kms_contract_address, contract_address, wallet_private_key }) => {
+            if let Err(e) = commands::handle_set_kms(domain, kms_contract_address, contract_address, wallet_private_key).await {
+                eprintln!("Error setting KMS contract address: {}", e);
             }
         },
         None => {

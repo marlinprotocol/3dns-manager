@@ -109,3 +109,19 @@ pub async fn handle_transfer_domain(domain: &str, new_owner_wallet_address: &str
     
     Ok(())
 }
+
+/// Handles the "set kms" command
+pub async fn handle_set_kms(domain: &str, kms_contract_address: &str, contract_address: &str, wallet_private_key: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    contract_interaction::set_kms_contract(
+        domain.to_string(),
+        kms_contract_address.to_string(), 
+        contract_address.to_string(), 
+        rpc_url.to_string(), 
+        wallet_private_key.to_string()
+    ).await?;
+    
+    Ok(())
+}

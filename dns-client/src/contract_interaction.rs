@@ -16,6 +16,7 @@ sol! {
     interface DnsManager {
         function setDNSRecords(bytes32 domain_id, bytes memory records, bytes memory sig) external;
         function setWhoIsDelegatee(bytes32 domain_id, address delegatee) external;
+        function setKMSContract(bytes32 domain_id, address kmsContract) external;
     }
 }
 
@@ -246,6 +247,69 @@ pub async fn transfer_domain(
     }
     println!(
         "Successfully transferred domain. Transaction hash: {:?}",
+        tx_hash
+    );
+    Ok(())
+}
+
+pub async fn set_kms_contract(
+    domain: String,
+    kms_contract_address: String,
+    contract_address: String,
+    rpc_url: String,
+    wallet_private_key: String,
+) -> Result<()> {
+    // Create domain id by hashing the domain
+    let domain_id = namehash(&domain);
+
+    // Decode private key
+    let private_key =
+        B256::from_slice(&hex::decode(wallet_private_key).expect("Failed to decode private key"));
+
+    // Create signer
+    let signer = PrivateKeySigner::from_bytes(&private_key)
+        .expect("Failed to create signer from private key");
+    let wallet = EthereumWallet::from(signer);
+
+    // Create provider
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
+
+    // Parse contract address
+    let contract_addr = contract_address
+        .parse::<Address>()
+        .expect("Failed to parse contract address");
+
+    // Create a DnsManager instance
+    let dns_manager = DnsManager::new(contract_addr, provider.clone());
+
+    // Parse KMS contract address
+    let kms_contract_addr = kms_contract_address
+        .parse::<Address>()
+        .expect("Failed to parse KMS contract address");
+
+    // Call the setKMSContract function
+    println!("Setting KMS contract for domain: {}", domain);
+    let tx_hash = dns_manager
+        .setKMSContract(domain_id, kms_contract_addr)
+        .send()
+        .await?
+        .watch()
+        .await?;
+    // Verify transaction success
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await?
+        .ok_or_else(|| eyre::eyre!("Transaction receipt not found"))?;
+    if !receipt.status() {
+        return Err(eyre::eyre!(
+            "Transaction failed - check contract interaction"
+        ));
+    }
+    println!(
+        "Successfully set KMS contract. Transaction hash: {:?}",
         tx_hash
     );
     Ok(())
