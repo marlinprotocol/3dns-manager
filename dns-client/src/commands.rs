@@ -1,5 +1,4 @@
 use crate::contract_interaction;
-use alloy::contract;
 use eyre::Result;
 use reqwest;
 use serde::{Deserialize, Serialize};

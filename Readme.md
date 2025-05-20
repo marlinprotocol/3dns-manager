@@ -108,5 +108,7 @@ dns-client set-whois \
 
 * Subdomain Managment
 * Add mechanisms for delays between setting CAA record and A record to avoid race conditions in record propagation
+  * Race condition possible between propagation of CAA and A records as records are propagated individually, so not a good idea to set them together. 
+  * A record should only be set after setting CAA record to ensure security.
 * TTL for records should be configurable
 * Expand support to ACME services apart from letsencrypt
