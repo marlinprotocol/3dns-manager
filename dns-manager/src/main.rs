@@ -13,6 +13,11 @@ mod ip_checker;
 mod signer;
 use signer::Signer;
 
+#[derive(serde::Deserialize)]
+struct TtlParam {
+    ttl: Option<u32>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
@@ -38,6 +43,7 @@ async fn main() -> Result<()> {
     // GET /a-record
     let a_record_route = warp::path("a-record")
         .and(warp::get())
+        .and(warp::query::<TtlParam>())
         .and(signer_filter.clone())
         .and_then(get_encoded_a_record);
 
@@ -47,9 +53,10 @@ async fn main() -> Result<()> {
     // GET /caa-record
     let caa_record_route = warp::path("caa-record")
         .and(warp::get())
+        .and(warp::query::<TtlParam>())
         .and(acme_filter)
         .and(signer_filter.clone())
-        .and_then(get_encoded_ca_record);
+        .and_then(get_encoded_ca_record);   
 
     // Combine routes
     let routes = a_record_route.or(caa_record_route);
@@ -64,23 +71,25 @@ async fn main() -> Result<()> {
 }
 
 /// Generate and encode A record
-async fn get_encoded_a_record(signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
-    match generate_encoded_a_record(signer).await {
+async fn get_encoded_a_record(ttl_param: TtlParam, signer: Arc<Signer> ) -> Result<impl warp::Reply, warp::Rejection> {
+    let ttl = ttl_param.ttl.unwrap_or(3600);
+    match generate_encoded_a_record(signer, ttl).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
         Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),
     }
 }
 
 /// Generate and encode CAA record
-async fn get_encoded_ca_record(acme: String, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
-    match generate_encoded_caa_record(&acme, signer).await {
+async fn get_encoded_ca_record(ttl_param: TtlParam, acme: String, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
+    let ttl = ttl_param.ttl.unwrap_or(3600);
+    match generate_encoded_caa_record(&acme, signer, ttl).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
         Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),
     }
 }
 
 /// Generate encoded A record
-async fn generate_encoded_a_record(signer: Arc<Signer>) -> Result<String> {
+async fn generate_encoded_a_record(signer: Arc<Signer>, ttl: u32) -> Result<String> {
     println!("Fetching public IP...");
     let ip = get_public_ip().await;
     println!("Current Public IP: {}", ip);
@@ -92,7 +101,7 @@ async fn generate_encoded_a_record(signer: Arc<Signer>) -> Result<String> {
         domain: domain.clone(),
         record_type: 1, // A record type
         class: 1,
-        ttl: 3600, // Example TTL
+        ttl: ttl, // Example TTL
         data: ip, // Use the fetched public IP
     };
 
@@ -111,7 +120,7 @@ async fn generate_encoded_a_record(signer: Arc<Signer>) -> Result<String> {
 }
 
 /// Generate encoded CAA record
-async fn generate_encoded_caa_record(acme: &str, signer: Arc<Signer>) -> Result<String> {
+async fn generate_encoded_caa_record(acme: &str, signer: Arc<Signer>, ttl: u32) -> Result<String> {
     println!("Generating CAA record...");
     let domain = env::var("DOMAIN_NAME").expect("DOMAIN_NAME must be set");
 
@@ -155,7 +164,7 @@ async fn generate_encoded_caa_record(acme: &str, signer: Arc<Signer>) -> Result<
         domain: domain.clone(),
         record_type: 257, // CAA record type
         class: 1,
-        ttl: 14400,
+        ttl: ttl,
         data: caa_record_data,
     };
 
