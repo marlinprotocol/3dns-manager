@@ -78,7 +78,7 @@ dns-client set-dns \
   --a-ttl <your-desired-ttl-value-for-A-record> \
   --caa-ttl <your-desired-ttl-value-for-CAA-record> 
 ```
-Note: a-ttl and caa-ttl are optional params. They default to 3600 seconds (1 hour) for A record and 14400 seconds (4 hours) for CAA record.
+Note: a-ttl and caa-ttl are optional params. They default to 3600 seconds (1 hour) for both A record and CAA record.
 
 ### Setting WHOIS Delegation
 

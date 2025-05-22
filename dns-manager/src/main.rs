@@ -81,7 +81,7 @@ async fn get_encoded_a_record(ttl_param: TtlParam, signer: Arc<Signer> ) -> Resu
 
 /// Generate and encode CAA record
 async fn get_encoded_ca_record(ttl_param: TtlParam, acme: String, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
-    let ttl = ttl_param.ttl.unwrap_or(14400);
+    let ttl = ttl_param.ttl.unwrap_or(3600);
     match generate_encoded_caa_record(&acme, signer, ttl).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
         Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),

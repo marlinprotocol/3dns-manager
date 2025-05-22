@@ -36,7 +36,7 @@ enum Commands {
         a_ttl: u32,
 
         /// TTL for CAA record
-        #[arg(long, default_value = "14400")]
+        #[arg(long, default_value = "3600")]
         caa_ttl: u32,
     },
     
