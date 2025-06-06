@@ -24,7 +24,7 @@ enum Commands {
         enclave_ip: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
         contract_address: String,
         
         /// Wallet private key
@@ -44,7 +44,7 @@ enum Commands {
         delegate_wallet_address: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
         contract_address: String,
         
         /// Wallet private key
@@ -64,7 +64,7 @@ enum Commands {
         new_owner_wallet_address: String,
 
         /// Smart contract address for domain controller
-        #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
         contract_address: String,
         
         /// Wallet private key
@@ -73,7 +73,7 @@ enum Commands {
     },
 
     /// Set KMS contract address
-    #[command(name = "set-kms")]
+    #[command(name = "set-kms-contract")]
     SetKms {
         /// Domain ID
         #[arg(long)]
@@ -84,13 +84,37 @@ enum Commands {
         kms_contract_address: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0xBB7B805B257d7C76CA9435B3ffe780355E4C4B17")]
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
         contract_address: String,
         
         /// Wallet private key
         #[arg(long, short='p')]
         wallet_private_key: String,
     },
+
+    /// Set KMS key
+    #[command(name = "set-kms-key")]
+    SetKmsKey {
+        /// Domain
+        #[arg(long)]
+        domain: String,
+
+        /// KMS signer address
+        #[arg(long)]
+        kms_signer_address: String,
+
+        /// Proof
+        #[arg(long)]
+        proof: String,
+
+        /// Smart contract address
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        contract_address: String,
+        
+        /// Wallet private key
+        #[arg(long, short='p')]
+        wallet_private_key: String,
+    }
 }
 
 #[tokio::main]
@@ -116,6 +140,11 @@ async fn main() {
         Some(Commands::SetKms { domain, kms_contract_address, contract_address, wallet_private_key }) => {
             if let Err(e) = commands::handle_set_kms(domain, kms_contract_address, contract_address, wallet_private_key).await {
                 eprintln!("Error setting KMS contract address: {}", e);
+            }
+        },
+        Some(Commands::SetKmsKey { domain, kms_signer_address, proof, contract_address, wallet_private_key }) => {
+            if let Err(e) = commands::handle_set_kms_key(domain, kms_signer_address, proof, contract_address, wallet_private_key).await {
+                eprintln!("Error setting KMS key: {}", e);
             }
         },
         None => {

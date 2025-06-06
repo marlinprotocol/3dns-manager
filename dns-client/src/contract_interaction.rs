@@ -9,16 +9,12 @@ use eyre::Result;
 use hex;
 use url::Url;
 
-// Define the ABI for the setDNSRecords function
-// Replace with your actual contract ABI loading mechanism if needed
-sol! {
+sol!(
+    #[allow(missing_docs)]
     #[sol(rpc)]
-    interface DnsManager {
-        function setDNSRecords(bytes32 domain_id, bytes memory records, bytes memory sig) external;
-        function setWhoIsDelegatee(bytes32 domain_id, address delegatee) external;
-        function setKMSContract(bytes32 domain_id, address kmsContract) external;
-    }
-}
+    DnsManager,
+    "src/abis/DomainManager.json"
+);
 
 sol! {
     #[sol(rpc)]
@@ -252,7 +248,7 @@ pub async fn transfer_domain(
     Ok(())
 }
 
-pub async fn set_kms_contract(
+pub async fn set_kms_contract(  
     domain: String,
     kms_contract_address: String,
     contract_address: String,
@@ -312,5 +308,72 @@ pub async fn set_kms_contract(
         "Successfully set KMS contract. Transaction hash: {:?}",
         tx_hash
     );
+    Ok(())
+}
+
+pub async fn set_kms_key(  
+    domain: String,
+    kms_signer_address: String,
+    proof: String,
+    contract_address: String,
+    rpc_url: String,
+    wallet_private_key: String,
+) -> Result<()> {
+    // Create domain id by hashing the domain
+    let domain_id = namehash(&domain);
+    println!("Domain ID: {:?}", domain_id);
+
+    // Decode proof to bytes
+    let proof_bytes = Bytes::from(hex::decode(proof).expect("Failed to decode proof"));
+    println!("Proof bytes: {:?}", proof_bytes);
+
+    // Decode private key
+    let private_key =
+        B256::from_slice(&hex::decode(wallet_private_key).expect("Failed to decode private key"));
+
+    // Create signer
+    let signer = PrivateKeySigner::from_bytes(&private_key)
+        .expect("Failed to create signer from private key");
+    let wallet = EthereumWallet::from(signer);
+
+    // Create provider
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
+
+    // Parse contract address
+    let contract_addr = contract_address
+        .parse::<Address>()
+        .expect("Failed to parse contract address");
+
+    // Parse KMS signer address
+    let kms_signer_addr = kms_signer_address
+        .parse::<Address>()
+        .expect("Failed to parse KMS signer address");
+
+    // Create a DnsManager instance
+    let dns_manager = DnsManager::new(contract_addr, provider.clone());
+
+    // Call setKMSKey on the contract
+    println!("Setting KMS key for domain: {}", domain);
+    let tx = match dns_manager.setKMSKey(domain_id, kms_signer_addr, proof_bytes).send().await {
+        Ok(tx) => tx.watch().await?,
+        Err(e) => {
+            return Err(eyre::eyre!("Failed to set KMS key: {}", e));
+        }
+    };
+
+    // Get and verify the receipt
+    let receipt = provider
+        .get_transaction_receipt(tx)
+        .await?
+        .ok_or_else(|| eyre::eyre!("Transaction receipt not found"))?;
+
+    if !receipt.status() {
+        return Err(eyre::eyre!("Transaction failed - check contract interaction"));
+    }
+
+    println!("Successfully set KMS key. Transaction hash: {:?}", tx);
     Ok(())
 }
