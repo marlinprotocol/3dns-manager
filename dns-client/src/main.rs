@@ -151,6 +151,30 @@ enum Commands {
         #[arg(long, short='p')]
         wallet_private_key: String,
     },
+
+    /// Get domain owner role identifier
+    #[command(name = "get-owner-role")]
+    GetDomainOwnerRole {
+        /// Domain ID (bytes32)
+        #[arg(long)]
+        domain_id: String,
+        
+        /// Smart contract address
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        contract_address: String,
+    },
+
+    /// Get domain manager role identifier
+    #[command(name = "get-manager-role")]
+    GetDomainManagerRole {
+        /// Domain ID (bytes32)
+        #[arg(long)]
+        domain_id: String,
+        
+        /// Smart contract address
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        contract_address: String,
+    },
 }
 
 #[tokio::main]
@@ -191,6 +215,16 @@ async fn main() {
         Some(Commands::GrantRole { role, account, contract_address, wallet_private_key }) => {
             if let Err(e) = commands::handle_grant_role(role, account, contract_address, wallet_private_key).await {
                 eprintln!("Error granting role: {}", e);
+            }
+        },
+        Some(Commands::GetDomainOwnerRole { domain_id, contract_address }) => {
+            if let Err(e) = commands::handle_get_domain_owner_role(domain_id, contract_address).await {
+                eprintln!("Error getting domain owner role: {}", e);
+            }
+        },
+        Some(Commands::GetDomainManagerRole { domain_id, contract_address }) => {
+            if let Err(e) = commands::handle_get_domain_manager_role(domain_id, contract_address).await {
+                eprintln!("Error getting domain manager role: {}", e);
             }
         },
         None => {

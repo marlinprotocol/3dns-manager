@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use alloy::{
     network::EthereumWallet,
     primitives::{keccak256, Address, Bytes, B256, U256},
@@ -475,4 +473,60 @@ pub async fn grant_role(
 
     println!("Successfully granted role. Transaction hash: {:?}", tx_hash);
     Ok(())
+}
+
+pub async fn get_domain_owner_role(
+    domain_id: String,
+    contract_address: String,
+    rpc_url: String,
+) -> Result<B256> {
+    // Create provider without wallet since this is a read-only call
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
+
+    // Parse contract address
+    let contract_addr = contract_address
+        .parse::<Address>()
+        .expect("Failed to parse contract address");
+
+    // Parse domain_id bytes32
+    let domain_id_bytes = B256::from_slice(&hex::decode(domain_id.strip_prefix("0x").unwrap_or(&domain_id))
+        .expect("Failed to decode domain_id bytes32"));
+
+    // Create a DnsManager instance
+    let dns_manager = DnsManager::new(contract_addr, provider.clone());
+
+    // Call getDomainOwnerRole function
+    let role = dns_manager.getDomainOwnerRole(domain_id_bytes).call().await?._0;
+
+    Ok(role)
+}
+
+pub async fn get_domain_manager_role(
+    domain_id: String,
+    contract_address: String,
+    rpc_url: String,
+) -> Result<B256> {
+    // Create provider without wallet since this is a read-only call
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
+
+    // Parse contract address
+    let contract_addr = contract_address
+        .parse::<Address>()
+        .expect("Failed to parse contract address");
+
+    // Parse domain_id bytes32
+    let domain_id_bytes = B256::from_slice(&hex::decode(domain_id.strip_prefix("0x").unwrap_or(&domain_id))
+        .expect("Failed to decode domain_id bytes32"));
+
+    // Create a DnsManager instance
+    let dns_manager = DnsManager::new(contract_addr, provider.clone());
+
+    // Call getDomainManagerRole function
+    let role = dns_manager.getDomainManagerRole(domain_id_bytes).call().await?._0;
+
+    Ok(role)
 }

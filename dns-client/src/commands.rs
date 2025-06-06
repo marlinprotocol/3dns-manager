@@ -175,3 +175,33 @@ pub async fn handle_grant_role(role: &str, account: &str, contract_address: &str
     println!("Successfully granted role {} to account {}", role, account);
     Ok(())
 }
+
+/// Handles the "get-owner-role" command
+pub async fn handle_get_domain_owner_role(domain_id: &str, contract_address: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    let role = contract_interaction::get_domain_owner_role(
+        domain_id.to_string(),
+        contract_address.to_string(),
+        rpc_url.to_string()
+    ).await?;
+
+    println!("Domain owner role for domain_id {}: 0x{}", domain_id, hex::encode(role));
+    Ok(())
+}
+
+/// Handles the "get-manager-role" command
+pub async fn handle_get_domain_manager_role(domain_id: &str, contract_address: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    let role = contract_interaction::get_domain_manager_role(
+        domain_id.to_string(), 
+        contract_address.to_string(),
+        rpc_url.to_string()
+    ).await?;
+
+    println!("Domain manager role for domain_id {}: 0x{}", domain_id, hex::encode(role));
+    Ok(())
+}
