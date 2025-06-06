@@ -114,7 +114,43 @@ enum Commands {
         /// Wallet private key
         #[arg(long, short='p')]
         wallet_private_key: String,
-    }
+    },
+
+    /// Check if an account has a role
+    #[command(name = "has-role")]
+    HasRole {
+        /// Role identifier (bytes32)
+        #[arg(long)]
+        role: String,
+        
+        /// Account address to check
+        #[arg(long)]
+        account: String,
+        
+        /// Smart contract address
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        contract_address: String,
+    },
+
+    /// Grant a role to an account
+    #[command(name = "grant-role")]
+    GrantRole {
+        /// Role identifier (bytes32)
+        #[arg(long)]
+        role: String,
+        
+        /// Account address to grant the role to
+        #[arg(long)]
+        account: String,
+        
+        /// Smart contract address
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        contract_address: String,
+        
+        /// Wallet private key
+        #[arg(long, short='p')]
+        wallet_private_key: String,
+    },
 }
 
 #[tokio::main]
@@ -145,6 +181,16 @@ async fn main() {
         Some(Commands::SetKmsKey { domain, kms_signer_address, proof, contract_address, wallet_private_key }) => {
             if let Err(e) = commands::handle_set_kms_key(domain, kms_signer_address, proof, contract_address, wallet_private_key).await {
                 eprintln!("Error setting KMS key: {}", e);
+            }
+        },
+        Some(Commands::HasRole { role, account, contract_address }) => {
+            if let Err(e) = commands::handle_has_role(role, account, contract_address).await {
+                eprintln!("Error checking role: {}", e);
+            }
+        },
+        Some(Commands::GrantRole { role, account, contract_address, wallet_private_key }) => {
+            if let Err(e) = commands::handle_grant_role(role, account, contract_address, wallet_private_key).await {
+                eprintln!("Error granting role: {}", e);
             }
         },
         None => {

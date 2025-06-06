@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use alloy::{
     network::EthereumWallet,
     primitives::{keccak256, Address, Bytes, B256, U256},
@@ -375,5 +377,102 @@ pub async fn set_kms_key(
     }
 
     println!("Successfully set KMS key. Transaction hash: {:?}", tx);
+    Ok(())
+}
+
+pub async fn has_role(
+    role: String,
+    account: String,
+    contract_address: String,
+    rpc_url: String,
+) -> Result<bool> {
+    // Create provider without wallet since this is a read-only call
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
+
+    // Parse contract address
+    let contract_addr = contract_address
+        .parse::<Address>()
+        .expect("Failed to parse contract address");
+
+    // Parse account address
+    let account_addr = account
+        .parse::<Address>()
+        .expect("Failed to parse account address");
+
+    println!("Checking role: {} for account: {}", role, account);
+
+    // Parse role bytes32 - strip 0x prefix if present and decode from hex
+    let role_bytes = B256::from_slice(&hex::decode(role.strip_prefix("0x").unwrap_or(&role))
+        .expect("Failed to decode role bytes32"));
+
+    // Create a DnsManager instance
+    let dns_manager = DnsManager::new(contract_addr, provider.clone());
+
+    // Call hasRole function
+    let has_role = dns_manager.hasRole(role_bytes, account_addr).call().await?._0;
+
+    Ok(has_role)
+}
+
+pub async fn grant_role(
+    role: String,
+    account: String,
+    contract_address: String,
+    rpc_url: String,
+    wallet_private_key: String,
+) -> Result<()> {
+    // Decode private key
+    let private_key =
+        B256::from_slice(&hex::decode(wallet_private_key).expect("Failed to decode private key"));
+
+    // Create signer
+    let signer = PrivateKeySigner::from_bytes(&private_key)
+        .expect("Failed to create signer from private key");
+    let wallet = EthereumWallet::from(signer);
+
+    // Create provider
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
+
+    // Parse contract address
+    let contract_addr = contract_address
+        .parse::<Address>()
+        .expect("Failed to parse contract address");
+
+    // Parse account address
+    let account_addr = account
+        .parse::<Address>()
+        .expect("Failed to parse account address");
+
+    // Parse role bytes32
+    let role_bytes = B256::from_slice(&hex::decode(role.strip_prefix("0x").unwrap_or(&role))
+        .expect("Failed to decode role bytes32"));
+
+    // Create a DnsManager instance
+    let dns_manager = DnsManager::new(contract_addr, provider.clone());
+
+    // Call grantRole function
+    let tx_hash = dns_manager
+        .grantRole(role_bytes, account_addr)
+        .send()
+        .await?
+        .watch()
+        .await?;
+
+    // Verify transaction success
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await?
+        .ok_or_else(|| eyre::eyre!("Transaction receipt not found"))?;
+
+    if !receipt.status() {
+        return Err(eyre::eyre!("Transaction failed - check contract interaction"));
+    }
+
+    println!("Successfully granted role. Transaction hash: {:?}", tx_hash);
     Ok(())
 }
