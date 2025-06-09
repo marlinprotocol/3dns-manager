@@ -13,6 +13,11 @@ mod ip_checker;
 mod signer;
 use signer::Signer;
 
+#[derive(serde::Deserialize)]
+struct TtlParam {
+    ttl: Option<u32>,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
@@ -40,20 +45,22 @@ async fn main() -> Result<()> {
     // GET /dns-records
     let dns_records_route = warp::path("dns-records")
         .and(warp::get())
+        .and(warp::query::<TtlParam>())
         .and(signer_filter.clone())
-        .and_then(move |signer: Arc<Signer>| {
+        .and_then(move |ttl_param: TtlParam, signer: Arc<Signer>| {
             let acme_services = acme_services_for_dns.clone();
-            async move { get_encoded_dns_records(acme_services, signer).await }
+            async move { get_encoded_dns_records(acme_services, ttl_param, signer).await }
         });
 
     let acme_services_for_caa = acme_services.clone();
     // GET /caa-records
     let caa_record_route = warp::path("caa-records")
         .and(warp::get())
+        .and(warp::query::<TtlParam>())
         .and(signer_filter.clone())
-        .and_then(move |signer: Arc<Signer>| {
+        .and_then(move |ttl_param: TtlParam, signer: Arc<Signer>| {
             let acme_services = acme_services_for_caa.clone();
-            async move { get_encoded_caa_records(acme_services, signer).await }
+            async move { get_encoded_caa_records(acme_services, ttl_param, signer).await }
         });
 
     // Combine routes
@@ -69,16 +76,18 @@ async fn main() -> Result<()> {
 }
 
 /// Generate and encode DNS records
-async fn get_encoded_dns_records(acme_services: Vec<String>, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
-    match generate_encoded_dns_records(acme_services, signer).await {
+async fn get_encoded_dns_records(acme_services: Vec<String>, ttl_param: TtlParam, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
+    let ttl = ttl_param.ttl.unwrap_or(3600);
+    match generate_encoded_dns_records(acme_services, ttl, signer).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
         Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),
     }
 }
 
 /// Generate and encode CAA records for all ACME services together
-async fn get_encoded_caa_records(acme_services: Vec<String>, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
-    match generate_encoded_caa_records(acme_services, signer).await {
+async fn get_encoded_caa_records(acme_services: Vec<String>, ttl_param: TtlParam, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
+    let ttl = ttl_param.ttl.unwrap_or(3600);
+    match generate_encoded_caa_records(acme_services, ttl, signer).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
         Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),
     }
@@ -111,7 +120,7 @@ fn get_caa_record_data(acme: &str) -> Result<String> {
 }
 
 /// Generate all CAA records for all ACME services (returns Vec<DnsRecord>)
-async fn generate_caa_records(acme_services: Vec<String>, domain: &str) -> Result<Vec<dns_encoder::DnsRecord>> {
+async fn generate_caa_records(acme_services: Vec<String>, ttl: u32, domain: &str) -> Result<Vec<dns_encoder::DnsRecord>> {
     let mut caa_records = Vec::new();
     for acme in acme_services {
         let caa_record_data = tokio::task::spawn_blocking(move || get_caa_record_data(&acme)).await.unwrap()?;
@@ -119,7 +128,7 @@ async fn generate_caa_records(acme_services: Vec<String>, domain: &str) -> Resul
             domain: domain.to_string(),
             record_type: 257, // CAA record type
             class: 1,
-            ttl: 3600,
+            ttl: ttl,
             data: caa_record_data,
         };
         caa_records.push(caa_record);
@@ -128,9 +137,9 @@ async fn generate_caa_records(acme_services: Vec<String>, domain: &str) -> Resul
 }
 
 /// Generate and encode all CAA records together for all ACME services
-async fn generate_encoded_caa_records(acme_services: Vec<String>, signer: Arc<Signer>) -> Result<String> {
+async fn generate_encoded_caa_records(acme_services: Vec<String>, ttl: u32, signer: Arc<Signer>) -> Result<String> {
     let domain = env::var("DOMAIN_NAME").expect("DOMAIN_NAME must be set");
-    let caa_records = generate_caa_records(acme_services, &domain).await?;
+    let caa_records = generate_caa_records(acme_services, ttl, &domain).await?;
 
     // Encode all CAA records together
     let encoded_records = dns_encoder::DnsRecord::encode_dns_records(&caa_records)
@@ -144,7 +153,7 @@ async fn generate_encoded_caa_records(acme_services: Vec<String>, signer: Arc<Si
 }
 
 /// Generate encoded DNS records
-async fn generate_encoded_dns_records(acme_services: Vec<String>, signer: Arc<Signer>) -> Result<String> {
+async fn generate_encoded_dns_records(acme_services: Vec<String>, ttl: u32, signer: Arc<Signer>) -> Result<String> {
     println!("Fetching public IP...");
     let ip = get_public_ip().await;
     println!("Current Public IP: {}", ip);
@@ -156,7 +165,7 @@ async fn generate_encoded_dns_records(acme_services: Vec<String>, signer: Arc<Si
         domain: domain.clone(),
         record_type: 1, // A record type
         class: 1,
-        ttl: 3600, // Example TTL
+        ttl: ttl, // Example TTL
         data: ip, // Use the fetched public IP
     };
 
@@ -164,7 +173,7 @@ async fn generate_encoded_dns_records(acme_services: Vec<String>, signer: Arc<Si
     let mut dns_records = vec![a_record];
 
     // Generate CAA records
-    let caa_records = generate_caa_records(acme_services, &domain).await?;
+    let caa_records = generate_caa_records(acme_services, ttl, &domain).await?;
     dns_records.extend(caa_records);
 
     let encoded_records = dns_encoder::DnsRecord::encode_dns_records(&dns_records)
