@@ -30,6 +30,14 @@ enum Commands {
         /// Wallet private key
         #[arg(long, short='p')]
         wallet_private_key: String,
+
+        /// TTL for A record
+        #[arg(long, default_value = "3600")]
+        a_ttl: u32,
+
+        /// TTL for CAA record
+        #[arg(long, default_value = "3600")]
+        caa_ttl: u32,
     },
     
     /// Set WHOIS delegation address
@@ -98,8 +106,8 @@ async fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Some(Commands::SetDns { domain, enclave_ip, contract_address, wallet_private_key }) => {
-            if let Err(e) = commands::handle_set_dns_records(domain, enclave_ip, contract_address, wallet_private_key).await {
+        Some(Commands::SetDns { domain, enclave_ip, contract_address, wallet_private_key, a_ttl, caa_ttl }) => {
+            if let Err(e) = commands::handle_set_dns_records(domain, enclave_ip, contract_address, wallet_private_key, *a_ttl, *caa_ttl).await {
                 eprintln!("Error setting DNS records: {}", e);
             }
         },
