@@ -22,5 +22,4 @@ ureq = "3.0.10"
 anyhow = "1.0.97"
 
 # Alloy dependencies (adjust versions as needed)
-alloy = {version = "0.9.1", features = ["full"]}
-alloy-signer = "1.0.9"
+alloy = {version = "1.0.9", features = ["full","eip712"]}
