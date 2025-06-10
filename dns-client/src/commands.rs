@@ -14,19 +14,19 @@ struct DnsRecordResponse {
 pub async fn handle_set_dns_records(domain: &str, enclave_ip: &str, contract_address: &str, wallet_private_key: &str, a_ttl: u32, caa_ttl: u32) -> Result<()> {
     let rpc_url = "https://mainnet.optimism.io";
     
-    // Process A record
-    if let Err(e) = query_and_set_dns_record(enclave_ip, "a-record", domain, contract_address, rpc_url, wallet_private_key, a_ttl).await {
+    // Process DNS records
+    if let Err(e) = query_and_set_dns_record(enclave_ip, "dns-records", domain, contract_address, rpc_url, wallet_private_key, a_ttl).await {
         eprintln!("Error processing A record: {}", e);
     } else {
         println!("Successfully processed A record");
     }
     
-    // Process CAA record
-    if let Err(e) = query_and_set_dns_record(enclave_ip, "caa-record", domain, contract_address, rpc_url, wallet_private_key, caa_ttl).await {
-        eprintln!("Error processing CAA record: {}", e);
-    } else {
-        println!("Successfully processed CAA record");
-    }
+    // // Process CAA record
+    // if let Err(e) = query_and_set_dns_record(enclave_ip, "caa-records", domain, contract_address, rpc_url, wallet_private_key, caa_ttl).await {
+    //     eprintln!("Error processing CAA record: {}", e);
+    // } else {
+    //     println!("Successfully processed CAA record");
+    // }
     
     Ok(())
 }
@@ -64,6 +64,7 @@ async fn query_and_set_dns_record(
     let signature = parts[1].to_string();
     
     println!("Received record: {}", dns_record);
+    println!("Received signature: {}", signature);
     
     // Call the contract to set the DNS record
     contract_interaction::call_set_dns_records(

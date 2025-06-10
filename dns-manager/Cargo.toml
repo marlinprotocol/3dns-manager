@@ -23,3 +23,4 @@ anyhow = "1.0.97"
 
 # Alloy dependencies (adjust versions as needed)
 alloy = {version = "0.9.1", features = ["full"]}
+alloy-signer = "1.0.9"

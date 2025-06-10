@@ -25,10 +25,11 @@ async fn main() -> Result<()> {
     // Get configuration from environment variables
     let port = env::var("PORT").unwrap_or_else(|_| "8004".to_string()).parse::<u16>()
         .expect("PORT must be a valid port number");
-    let acme_env = env::var("ACME").unwrap_or_else(|_| "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org/directory".to_string());
+    let acme_env = env::var("ACME").unwrap_or_else(|_| "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org-directory".to_string());
     let acme_services: Vec<String> = acme_env.split(',').map(|s| s.trim().to_string()).collect();
+    println!("ACME services: {:?}", acme_services);
 
-    println!("Starting DNS Manager server on port {}...", port);
+    println!("Yo, Starting DNS Manager server on port {}...", port);
 
     // Initialize the signer
     let mut signer = Signer::new();
@@ -181,7 +182,7 @@ async fn generate_encoded_dns_records(acme_services: Vec<String>, ttl: u32, sign
     println!("Encoded A record: {}", encoded_records);
 
     // Sign the encoded records
-    let signature = signer.sign_message(&encoded_records)
+    let signature = signer.sign_typed_data(&encoded_records)
         .map_err(|e| eyre::eyre!("Failed to sign A record: {}", e))?;
     
     // Return signed response (base encoded record + signature appended)

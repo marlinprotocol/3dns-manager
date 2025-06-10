@@ -128,7 +128,7 @@ pub async fn call_set_dns_records(
     let records_bytes = Bytes::from(encoded_records.as_bytes().to_vec());
 
     // Convert signature to bytes
-    let signature_bytes = Bytes::from(signature.as_bytes().to_vec());
+    let signature_bytes = Bytes::from(hex::decode(signature).expect("Failed to decode signature"));
 
     // Decode private key
     let private_key =
@@ -326,6 +326,7 @@ pub async fn set_kms_key(
     // Decode proof to bytes
     let proof_bytes = Bytes::from(hex::decode(proof).expect("Failed to decode proof"));
     println!("Proof bytes: {:?}", proof_bytes);
+    
 
     // Decode private key
     let private_key =
