@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use alloy::{
-    primitives::{keccak256, B256},
+    primitives::keccak256, // Removed B256
     sol,
     signers::{local::PrivateKeySigner, SignerSync},
 };
@@ -16,9 +16,9 @@ pub struct MessageSigner {
 
 sol! {
     #[derive(Debug)]
-    struct SetRecordsParams {
+    struct setDNSRecords {
         bytes32 domain_id;
-        bytes32 records_hash;
+        bytes32 records_hash; 
     }
 }
 
@@ -44,25 +44,25 @@ impl MessageSigner {
         Ok(())
     }
 
-    pub async fn sign_message(&self, message: &str, domain: &str) -> Result<String> {
+    pub async fn sign_message(&self, message: &str, domain_name: &str) -> Result<String> { 
         let key = self.key.as_ref().context("Signer not initialized")?;
         let signer = PrivateKeySigner::from_bytes(key.into())?;
 
-        let domain_id = namehash(domain);
+        let domain_id = namehash(domain_name); 
         let hashed_records = keccak256(message.as_bytes());
 
-        let params = SetRecordsParams {
+        let params = setDNSRecords { 
             domain_id: domain_id.into(),
             records_hash: hashed_records.into(),
         };
 
         // Create EIP-712 domain
-        let domain = eip712_domain! {
+        let eip712_domain_obj = eip712_domain! {
             name: "3DNS Domain Manager",
             version: "1",
         };
 
-        let signature = signer.sign_typed_data_sync(&params, &domain)?;
+        let signature = signer.sign_typed_data_sync(&params, &eip712_domain_obj)?;
 
         let signer_address = signer.address();
         let signer_creds = signer.credential();
