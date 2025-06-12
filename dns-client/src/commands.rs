@@ -11,7 +11,7 @@ struct DnsRecordResponse {
 }
 
 /// Handles the "set dns-records" command
-pub async fn handle_set_dns_records(domain: &str, enclave_ip: &str, contract_address: &str, wallet_private_key: &str, a_ttl: u32, caa_ttl: u32) -> Result<()> {
+pub async fn handle_set_dns_records(domain: &str, enclave_ip: &str, contract_address: &str, wallet_private_key: &str, a_ttl: u32, _caa_ttl: u32) -> Result<()> {
     let rpc_url = "https://mainnet.optimism.io";
     
     // Process DNS records
@@ -20,13 +20,6 @@ pub async fn handle_set_dns_records(domain: &str, enclave_ip: &str, contract_add
     } else {
         println!("Successfully processed A record");
     }
-    
-    // // Process CAA record
-    // if let Err(e) = query_and_set_dns_record(enclave_ip, "caa-records", domain, contract_address, rpc_url, wallet_private_key, caa_ttl).await {
-    //     eprintln!("Error processing CAA record: {}", e);
-    // } else {
-    //     println!("Successfully processed CAA record");
-    // }
     
     Ok(())
 }
@@ -178,6 +171,23 @@ pub async fn handle_grant_role(role: &str, account: &str, contract_address: &str
     Ok(())
 }
 
+/// Handles the "revoke-role" command
+pub async fn handle_revoke_role(role: &str, account: &str, contract_address: &str, wallet_private_key: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    contract_interaction::revoke_role(
+        role.to_string(), 
+        account.to_string(), 
+        contract_address.to_string(), 
+        rpc_url.to_string(), 
+        wallet_private_key.to_string()
+    ).await?;
+    
+    println!("Successfully revoked role {} from account {}", role, account);
+    Ok(())
+}
+
 /// Handles the "get-owner-role" command
 pub async fn handle_get_domain_owner_role(domain_id: &str, contract_address: &str) -> Result<()> {
     let rpc_url = "https://mainnet.optimism.io";
@@ -205,5 +215,32 @@ pub async fn handle_get_domain_manager_role(domain_id: &str, contract_address: &
     ).await?;
 
     println!("Domain manager role for domain_id {}: 0x{}", domain_id, hex::encode(role));
+    Ok(())
+}
+
+/// Handles the "compute-domain-id" command
+pub async fn handle_compute_domain_id(domain: &str) -> Result<()> {
+    let domain_id = contract_interaction::namehash(domain);
+    println!("Domain ID for {}: 0x{}", domain, hex::encode(domain_id));
+    Ok(())
+}
+
+/// Handles the "retrieve-domain" command
+pub async fn handle_retrieve_domain(domain: &str, to: &str, contract_address: &str, wallet_private_key: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Compute the domain ID using namehash
+    let domain_id = contract_interaction::namehash(domain);
+    let domain_id_hex = hex::encode(domain_id);
+    
+    // Call the contract interaction function
+    contract_interaction::retrieve_domain(
+        domain_id_hex,
+        to.to_string(),
+        contract_address.to_string(),
+        rpc_url.to_string(),
+        wallet_private_key.to_string()
+    ).await?;
+    
     Ok(())
 }

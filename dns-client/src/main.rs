@@ -160,6 +160,26 @@ enum Commands {
         wallet_private_key: String,
     },
 
+    /// Revoke a role from an account
+    #[command(name = "revoke-role")]
+    RevokeRole {
+        /// Role identifier (bytes32)
+        #[arg(long)]
+        role: String,
+        
+        /// Account address to revoke the role from
+        #[arg(long)]
+        account: String,
+        
+        /// Smart contract address
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        contract_address: String,
+        
+        /// Wallet private key
+        #[arg(long, short='p')]
+        wallet_private_key: String,
+    },
+
     /// Get domain owner role identifier
     #[command(name = "get-owner-role")]
     GetDomainOwnerRole {
@@ -182,6 +202,34 @@ enum Commands {
         /// Smart contract address
         #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
         contract_address: String,
+    },
+
+    /// Compute domain ID (namehash)  
+    #[command(name = "compute-domain-id")]
+    ComputeDomainId {
+        /// Domain name
+        #[arg(long)]
+        domain: String,
+    },
+
+    /// Retrieve domain from contract
+    #[command(name = "retrieve-domain")]
+    RetrieveDomain {
+        /// Domain name
+        #[arg(long)]
+        domain: String,
+
+        /// Destination address to retrieve the domain to
+        #[arg(long)]
+        to: String,
+
+        /// Smart contract address 
+        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        contract_address: String,
+
+        /// Wallet private key
+        #[arg(long, short='p')]
+        wallet_private_key: String,
     },
 }
 
@@ -225,6 +273,11 @@ async fn main() {
                 eprintln!("Error granting role: {}", e);
             }
         },
+        Some(Commands::RevokeRole { role, account, contract_address, wallet_private_key }) => {
+            if let Err(e) = commands::handle_revoke_role(role, account, contract_address, wallet_private_key).await {
+                eprintln!("Error revoking role: {}", e);
+            }
+        },
         Some(Commands::GetDomainOwnerRole { domain_id, contract_address }) => {
             if let Err(e) = commands::handle_get_domain_owner_role(domain_id, contract_address).await {
                 eprintln!("Error getting domain owner role: {}", e);
@@ -233,6 +286,16 @@ async fn main() {
         Some(Commands::GetDomainManagerRole { domain_id, contract_address }) => {
             if let Err(e) = commands::handle_get_domain_manager_role(domain_id, contract_address).await {
                 eprintln!("Error getting domain manager role: {}", e);
+            }
+        },
+        Some(Commands::ComputeDomainId { domain }) => {
+            if let Err(e) = commands::handle_compute_domain_id(domain).await {
+                eprintln!("Error computing domain ID: {}", e);
+            }
+        },
+        Some(Commands::RetrieveDomain { domain, to, contract_address, wallet_private_key }) => {
+            if let Err(e) = commands::handle_retrieve_domain(domain, to, contract_address, wallet_private_key).await {
+                eprintln!("Error retrieving domain: {}", e);
             }
         },
         None => {

@@ -23,7 +23,7 @@ sol! {
     }
 }
 
-fn namehash(domain: &str) -> B256 {
+pub fn namehash(domain: &str) -> B256 {
     let mut node = B256::ZERO;
     if domain.is_empty() {
         return node;
@@ -476,6 +476,67 @@ pub async fn grant_role(
     Ok(())
 }
 
+pub async fn revoke_role(
+    role: String,
+    account: String,
+    contract_address: String,
+    rpc_url: String,
+    wallet_private_key: String,
+) -> Result<()> {
+    // Decode private key
+    let private_key =
+        B256::from_slice(&hex::decode(wallet_private_key).expect("Failed to decode private key"));
+
+    // Create signer
+    let signer = PrivateKeySigner::from_bytes(&private_key)
+        .expect("Failed to create signer from private key");
+    let wallet = EthereumWallet::from(signer);
+
+    // Create provider
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
+
+    // Parse contract address
+    let contract_addr = contract_address
+        .parse::<Address>()
+        .expect("Failed to parse contract address");
+
+    // Parse account address
+    let account_addr = account
+        .parse::<Address>()
+        .expect("Failed to parse account address");
+
+    // Parse role bytes32
+    let role_bytes = B256::from_slice(&hex::decode(role.strip_prefix("0x").unwrap_or(&role))
+        .expect("Failed to decode role bytes32"));
+
+    // Create a DnsManager instance
+    let dns_manager = DnsManager::new(contract_addr, provider.clone());
+
+    // Call revokeRole function
+    let tx_hash = dns_manager
+        .revokeRole(role_bytes, account_addr)
+        .send()
+        .await?
+        .watch()
+        .await?;
+
+    // Verify transaction success
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await?
+        .ok_or_else(|| eyre::eyre!("Transaction receipt not found"))?;
+
+    if !receipt.status() {
+        return Err(eyre::eyre!("Transaction failed - check contract interaction"));
+    }
+
+    println!("Successfully revoked role. Transaction hash: {:?}", tx_hash);
+    Ok(())
+}
+
 pub async fn get_domain_owner_role(
     domain_id: String,
     contract_address: String,
@@ -530,4 +591,73 @@ pub async fn get_domain_manager_role(
     let role = dns_manager.getDomainManagerRole(domain_id_bytes).call().await?._0;
 
     Ok(role)
+}
+
+pub async fn retrieve_domain(
+    domain_id: String,
+    to: String,
+    contract_address: String,
+    rpc_url: String,
+    wallet_private_key: String,
+) -> Result<()> {
+    // Parse domain_id bytes32
+    let domain_id_bytes = B256::from_slice(&hex::decode(domain_id.strip_prefix("0x").unwrap_or(&domain_id))
+        .expect("Failed to decode domain_id bytes32"));
+
+    // Parse destination address
+    let to_addr = to
+        .parse::<Address>()
+        .expect("Failed to parse destination address");
+
+    // Decode private key
+    let private_key =
+        B256::from_slice(&hex::decode(wallet_private_key).expect("Failed to decode private key"));
+
+    // Create signer
+    let signer = PrivateKeySigner::from_bytes(&private_key)
+        .expect("Failed to create signer from private key");
+    let signer_address = signer.address();
+    println!("Signer address: {:?}", signer_address);
+    let wallet = EthereumWallet::from(signer);
+
+    // Create provider
+    let provider = ProviderBuilder::new()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .on_http(rpc_url.parse::<Url>().expect("Failed to parse RPC URL"));
+
+    // Parse contract address
+    let contract_addr = contract_address
+        .parse::<Address>()
+        .expect("Failed to parse contract address");
+
+    // Create a DnsManager instance
+    let dns_manager = DnsManager::new(contract_addr, provider.clone());
+
+    // Call the retrieveDomain function
+    println!("Retrieving domain ID: {} to address: {}", domain_id, to);
+    let tx_hash = dns_manager
+        .retrieveDomain(domain_id_bytes, to_addr)
+        .send()
+        .await?
+        .watch()
+        .await?;
+
+    // Verify transaction success
+    let receipt = provider
+        .get_transaction_receipt(tx_hash)
+        .await?
+        .ok_or_else(|| eyre::eyre!("Transaction receipt not found"))?;
+
+    if !receipt.status() {
+        return Err(eyre::eyre!(
+            "Transaction failed - check contract interaction"
+        ));
+    }
+
+    println!(
+        "Successfully retrieved domain. Transaction hash: {:?}",
+        tx_hash
+    );
+    Ok(())
 }
