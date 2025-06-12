@@ -5,13 +5,14 @@ use tokio;
 use dotenv;
 use warp::{self, Filter, http::Response};
 use std::sync::Arc;
+use alloy::primitives::{keccak256, B256};
 
 mod acme_manager;
 use acme_manager::ACMEManager;
 mod dns_encoder;
 mod ip_checker;
-mod signer;
-use signer::Signer;
+mod message_signer;
+use message_signer::MessageSigner;
 
 #[derive(serde::Deserialize)]
 struct TtlParam {
@@ -25,13 +26,14 @@ async fn main() -> Result<()> {
     // Get configuration from environment variables
     let port = env::var("PORT").unwrap_or_else(|_| "8004".to_string()).parse::<u16>()
         .expect("PORT must be a valid port number");
-    let acme_env = env::var("ACME").unwrap_or_else(|_| "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org/directory".to_string());
+    let acme_env = env::var("ACME").unwrap_or_else(|_| "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org-directory".to_string());
     let acme_services: Vec<String> = acme_env.split(',').map(|s| s.trim().to_string()).collect();
+    println!("ACME services: {:?}", acme_services);
 
-    println!("Starting DNS Manager server on port {}...", port);
+    println!("Yo, Starting DNS Manager server on port {}...", port);
 
     // Initialize the signer
-    let mut signer = Signer::new();
+    let mut signer = message_signer::MessageSigner::new();
     match signer.init().await {
         Ok(_) => println!("Signer initialized successfully"),
         Err(e) => eprintln!("Failed to initialize signer: {}", e),
@@ -47,7 +49,7 @@ async fn main() -> Result<()> {
         .and(warp::get())
         .and(warp::query::<TtlParam>())
         .and(signer_filter.clone())
-        .and_then(move |ttl_param: TtlParam, signer: Arc<Signer>| {
+        .and_then(move |ttl_param: TtlParam, signer: Arc<MessageSigner>| {
             let acme_services = acme_services_for_dns.clone();
             async move { get_encoded_dns_records(acme_services, ttl_param, signer).await }
         });
@@ -58,7 +60,7 @@ async fn main() -> Result<()> {
         .and(warp::get())
         .and(warp::query::<TtlParam>())
         .and(signer_filter.clone())
-        .and_then(move |ttl_param: TtlParam, signer: Arc<Signer>| {
+        .and_then(move |ttl_param: TtlParam, signer: Arc<MessageSigner>| {
             let acme_services = acme_services_for_caa.clone();
             async move { get_encoded_caa_records(acme_services, ttl_param, signer).await }
         });
@@ -76,7 +78,7 @@ async fn main() -> Result<()> {
 }
 
 /// Generate and encode DNS records
-async fn get_encoded_dns_records(acme_services: Vec<String>, ttl_param: TtlParam, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
+async fn get_encoded_dns_records(acme_services: Vec<String>, ttl_param: TtlParam, signer: Arc<MessageSigner>) -> Result<impl warp::Reply, warp::Rejection> {
     let ttl = ttl_param.ttl.unwrap_or(3600);
     match generate_encoded_dns_records(acme_services, ttl, signer).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
@@ -85,7 +87,7 @@ async fn get_encoded_dns_records(acme_services: Vec<String>, ttl_param: TtlParam
 }
 
 /// Generate and encode CAA records for all ACME services together
-async fn get_encoded_caa_records(acme_services: Vec<String>, ttl_param: TtlParam, signer: Arc<Signer>) -> Result<impl warp::Reply, warp::Rejection> {
+async fn get_encoded_caa_records(acme_services: Vec<String>, ttl_param: TtlParam, signer: Arc<MessageSigner>) -> Result<impl warp::Reply, warp::Rejection> {
     let ttl = ttl_param.ttl.unwrap_or(3600);
     match generate_encoded_caa_records(acme_services, ttl, signer).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
@@ -137,7 +139,7 @@ async fn generate_caa_records(acme_services: Vec<String>, ttl: u32, domain: &str
 }
 
 /// Generate and encode all CAA records together for all ACME services
-async fn generate_encoded_caa_records(acme_services: Vec<String>, ttl: u32, signer: Arc<Signer>) -> Result<String> {
+async fn generate_encoded_caa_records(acme_services: Vec<String>, ttl: u32, signer: Arc<MessageSigner>) -> Result<String> {
     let domain = env::var("DOMAIN_NAME").expect("DOMAIN_NAME must be set");
     let caa_records = generate_caa_records(acme_services, ttl, &domain).await?;
 
@@ -146,14 +148,14 @@ async fn generate_encoded_caa_records(acme_services: Vec<String>, ttl: u32, sign
         .map_err(|e| eyre::eyre!("Failed to encode CAA records: {}", e))?;
 
     // Sign the combined encoded records
-    let signature = signer.sign_message(&encoded_records)
-        .map_err(|e| eyre::eyre!("Failed to sign CAA records: {}", e))?;
+    let signature = signer.sign_message(&encoded_records,&domain)
+        .await.map_err(|e| eyre::eyre!("Failed to sign CAA records: {}", e))?;
 
     Ok(format!("{}:{}", encoded_records, signature))
 }
 
 /// Generate encoded DNS records
-async fn generate_encoded_dns_records(acme_services: Vec<String>, ttl: u32, signer: Arc<Signer>) -> Result<String> {
+async fn generate_encoded_dns_records(acme_services: Vec<String>, ttl: u32, signer: Arc<MessageSigner>) -> Result<String> {
     println!("Fetching public IP...");
     let ip = get_public_ip().await;
     println!("Current Public IP: {}", ip);
@@ -181,9 +183,30 @@ async fn generate_encoded_dns_records(acme_services: Vec<String>, ttl: u32, sign
     println!("Encoded A record: {}", encoded_records);
 
     // Sign the encoded records
-    let signature = signer.sign_message(&encoded_records)
-        .map_err(|e| eyre::eyre!("Failed to sign A record: {}", e))?;
+    let signature = signer.sign_message(&encoded_records,&domain)
+        .await.map_err(|e| eyre::eyre!("Failed to sign A record: {}", e))?;
     
     // Return signed response (base encoded record + signature appended)
     Ok(format!("{}:{}", encoded_records, signature))
+}
+
+fn namehash(domain: &str) -> B256 {
+    let mut node = B256::ZERO;
+    if domain.is_empty() {
+        return node;
+    }
+
+    let labels: Vec<&str> = domain.split('.').rev().collect();
+
+    for label in labels {
+        let label_hash = keccak256(label.as_bytes());
+
+        let mut combined = [0u8; 64];
+        combined[..32].copy_from_slice(node.as_slice());
+        combined[32..].copy_from_slice(label_hash.as_slice());
+
+        node = keccak256(&combined);
+    }
+
+    node
 }

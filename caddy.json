@@ -2,31 +2,39 @@
   "apps": {
     "tls": {
       "automation": {
-        "policies": [{
-          "issuers": [{
-            "module": "acme", 
-            "ca": "https://acme-v02.api.letsencrypt.org/directory",
-            "account_key": "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIBWjIcj4F6FmsWgB/Xl+PDRiHo7+ci9MYyaln+lXTE9/oAoGCCqGSM49AwEHoUQDQgAEC+Fyt8ZhLxX1Uf6KDPm+hQbe22IHrNqkZ2P2YEMWE7IblfawniPtgXU6HJxo7y5zDUnwQJRrxALd30RutYYraQ==\n-----END EC PRIVATE KEY-----"
-          }]
-        }]
+        "policies": [
+          {
+            "issuers": [
+              {
+                "module": "acme",
+                "ca": "https://acme-v02.api.letsencrypt.org/directory"
+              },
+              {
+                "module": "acme",
+                "ca": "https://acme-staging-v02.api.letsencrypt.org/directory"
+              }
+            ]
+          }
+        ]
       }
     },
     "http": {
       "servers": {
         "main": {
           "listen": [":80", ":443"],
-          "routes": [{
-            "match": [{
-              "host": ["cyborg13.xyz"]
-            }],
-            "handle": [{
-              "handler": "file_server",
-              "root": "/app/mount/website"
-            }]
-          }]
+          "routes": [
+            {
+              "match": [{ "host": ["letsgoo.tech"] }],
+              "handle": [
+                {
+                  "handler": "file_server",
+                  "root": "/app/mount/website"
+                }
+              ]
+            }
+          ]
         }
       }
-      
     }
   }
 }

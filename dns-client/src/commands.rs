@@ -11,21 +11,14 @@ struct DnsRecordResponse {
 }
 
 /// Handles the "set dns-records" command
-pub async fn handle_set_dns_records(domain: &str, enclave_ip: &str, contract_address: &str, wallet_private_key: &str, a_ttl: u32, caa_ttl: u32) -> Result<()> {
+pub async fn handle_set_dns_records(domain: &str, enclave_ip: &str, contract_address: &str, wallet_private_key: &str, a_ttl: u32, _caa_ttl: u32) -> Result<()> {
     let rpc_url = "https://mainnet.optimism.io";
     
-    // Process A record
-    if let Err(e) = query_and_set_dns_record(enclave_ip, "a-record", domain, contract_address, rpc_url, wallet_private_key, a_ttl).await {
+    // Process DNS records
+    if let Err(e) = query_and_set_dns_record(enclave_ip, "dns-records", domain, contract_address, rpc_url, wallet_private_key, a_ttl).await {
         eprintln!("Error processing A record: {}", e);
     } else {
         println!("Successfully processed A record");
-    }
-    
-    // Process CAA record
-    if let Err(e) = query_and_set_dns_record(enclave_ip, "caa-record", domain, contract_address, rpc_url, wallet_private_key, caa_ttl).await {
-        eprintln!("Error processing CAA record: {}", e);
-    } else {
-        println!("Successfully processed CAA record");
     }
     
     Ok(())
@@ -61,9 +54,10 @@ async fn query_and_set_dns_record(
     }
     
     let dns_record = parts[0].to_string();
-    let signature = parts[1].to_string();
+    let signature = parts[1].trim_start_matches("0x").to_string();
     
     println!("Received record: {}", dns_record);
+    println!("Received signature: {}", signature);
     
     // Call the contract to set the DNS record
     contract_interaction::call_set_dns_records(
@@ -120,6 +114,131 @@ pub async fn handle_set_kms(domain: &str, kms_contract_address: &str, contract_a
         kms_contract_address.to_string(), 
         contract_address.to_string(), 
         rpc_url.to_string(), 
+        wallet_private_key.to_string()
+    ).await?;
+    
+    Ok(())
+}
+
+/// Handles the "set kms key" command
+pub async fn handle_set_kms_key(domain_id: &str, kms_signer_address: &str, proof: &str, contract_address: &str, wallet_private_key: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    contract_interaction::set_kms_key(
+        domain_id.to_string(),
+        kms_signer_address.to_string(),
+        proof.to_string(),
+        contract_address.to_string(),
+        rpc_url.to_string(),
+        wallet_private_key.to_string(),
+    ).await?;
+    
+    Ok(())
+}
+
+/// Handles the "has-role" command
+pub async fn handle_has_role(role: &str, account: &str, contract_address: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    let has_role = contract_interaction::has_role(
+        role.to_string(), 
+        account.to_string(), 
+        contract_address.to_string(), 
+        rpc_url.to_string()
+    ).await?;
+
+    println!("Account {} {} role {}", account, if has_role { "has" } else { "does not have" }, role);
+    
+    Ok(())
+}
+
+/// Handles the "grant-role" command
+pub async fn handle_grant_role(role: &str, account: &str, contract_address: &str, wallet_private_key: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    contract_interaction::grant_role(
+        role.to_string(), 
+        account.to_string(), 
+        contract_address.to_string(), 
+        rpc_url.to_string(), 
+        wallet_private_key.to_string()
+    ).await?;
+    
+    println!("Successfully granted role {} to account {}", role, account);
+    Ok(())
+}
+
+/// Handles the "revoke-role" command
+pub async fn handle_revoke_role(role: &str, account: &str, contract_address: &str, wallet_private_key: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    contract_interaction::revoke_role(
+        role.to_string(), 
+        account.to_string(), 
+        contract_address.to_string(), 
+        rpc_url.to_string(), 
+        wallet_private_key.to_string()
+    ).await?;
+    
+    println!("Successfully revoked role {} from account {}", role, account);
+    Ok(())
+}
+
+/// Handles the "get-owner-role" command
+pub async fn handle_get_domain_owner_role(domain_id: &str, contract_address: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    let role = contract_interaction::get_domain_owner_role(
+        domain_id.to_string(),
+        contract_address.to_string(),
+        rpc_url.to_string()
+    ).await?;
+
+    println!("Domain owner role for domain_id {}: 0x{}", domain_id, hex::encode(role));
+    Ok(())
+}
+
+/// Handles the "get-manager-role" command
+pub async fn handle_get_domain_manager_role(domain_id: &str, contract_address: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Call the contract interaction function
+    let role = contract_interaction::get_domain_manager_role(
+        domain_id.to_string(), 
+        contract_address.to_string(),
+        rpc_url.to_string()
+    ).await?;
+
+    println!("Domain manager role for domain_id {}: 0x{}", domain_id, hex::encode(role));
+    Ok(())
+}
+
+/// Handles the "compute-domain-id" command
+pub async fn handle_compute_domain_id(domain: &str) -> Result<()> {
+    let domain_id = contract_interaction::namehash(domain);
+    println!("Domain ID for {}: 0x{}", domain, hex::encode(domain_id));
+    Ok(())
+}
+
+/// Handles the "retrieve-domain" command
+pub async fn handle_retrieve_domain(domain: &str, to: &str, contract_address: &str, wallet_private_key: &str) -> Result<()> {
+    let rpc_url = "https://mainnet.optimism.io";
+    
+    // Compute the domain ID using namehash
+    let domain_id = contract_interaction::namehash(domain);
+    let domain_id_hex = hex::encode(domain_id);
+    
+    // Call the contract interaction function
+    contract_interaction::retrieve_domain(
+        domain_id_hex,
+        to.to_string(),
+        contract_address.to_string(),
+        rpc_url.to_string(),
         wallet_private_key.to_string()
     ).await?;
     
