@@ -24,7 +24,7 @@ enum Commands {
         enclave_ip: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
         
         /// Wallet private key
@@ -52,7 +52,7 @@ enum Commands {
         delegate_wallet_address: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
         
         /// Wallet private key
@@ -72,7 +72,7 @@ enum Commands {
         new_owner_wallet_address: String,
 
         /// Smart contract address for domain controller
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
         
         /// Wallet private key
@@ -92,7 +92,7 @@ enum Commands {
         kms_contract_address: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
         
         /// Wallet private key
@@ -116,7 +116,7 @@ enum Commands {
         proof: String,
 
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
         
         /// Wallet private key
@@ -136,7 +136,7 @@ enum Commands {
         account: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
     },
 
@@ -152,7 +152,7 @@ enum Commands {
         account: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
         
         /// Wallet private key
@@ -172,7 +172,7 @@ enum Commands {
         account: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
         
         /// Wallet private key
@@ -188,7 +188,7 @@ enum Commands {
         domain_id: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
     },
 
@@ -200,7 +200,7 @@ enum Commands {
         domain_id: String,
         
         /// Smart contract address
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
     },
 
@@ -224,7 +224,7 @@ enum Commands {
         to: String,
 
         /// Smart contract address 
-        #[arg(long, default_value = "0x63f90A1b481a039CE1f7f350F74fFD6E56CFDe54")]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         contract_address: String,
 
         /// Wallet private key

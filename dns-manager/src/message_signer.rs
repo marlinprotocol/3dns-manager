@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use alloy::{
-    primitives::{address, keccak256}, signers::{local::PrivateKeySigner, SignerSync}, sol
+    primitives::{address, keccak256, U256}, signers::{local::PrivateKeySigner, SignerSync}, sol
 };
-
 use alloy::sol_types::eip712_domain;
+use std::env;
 
 use crate::namehash;
 
@@ -27,9 +27,12 @@ impl MessageSigner {
     }
 
     pub async fn init(&mut self) -> Result<()> {
-        // todo: update path -- generate domain id from domain name
+        let domain_id = env::var("DOMAIN_ID").context("DOMAIN_ID environment variable not set")?;
+        
+        let path = format!("DNS-RECORD-SIGNER-{}", domain_id);
+        
         let key_bytes: [u8; 32] =
-            ureq::get("http://127.0.0.1:1101/derive/secp256k1?path=signing-server")
+            ureq::get(&format!("http://127.0.0.1:1101/derive/secp256k1?path={}", path))
                 .call()
                 .context("Failed to send KMS request")?
                 .into_body()
@@ -75,7 +78,7 @@ impl MessageSigner {
     }
     
     // Alternative implementation if you prefer manual struct creation:
-    pub async fn sign_message_manual(&self, message: &str, domain_name: &str) -> Result<String> {
+    pub async fn _sign_message_manual(&self, message: &str, domain_name: &str) -> Result<String> {
         let key = self.key.as_ref().context("Signer not initialized")?;
         let signer = PrivateKeySigner::from_bytes(key.into())?;
     

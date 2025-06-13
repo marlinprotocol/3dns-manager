@@ -225,6 +225,7 @@ pub async fn transfer_domain(
     println!("Transferring domain: {} from {} to new owner: {}", domain, signer_address, new_owner);
     // Convert domain_id (B256) to U256 for the tokenId parameter
     let token_id = U256::from_be_bytes(domain_id.0);
+    println!("Token ID: {:?}", token_id);
     let tx_hash = domain_controller
         .safeTransferFrom(signer_address, new_owner, token_id)
         .send()
