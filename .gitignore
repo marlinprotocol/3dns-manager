@@ -20,6 +20,7 @@
 .env
 *.env.local
 *.env.*.local
+.marlin
 
 # IDE files
 .idea/
