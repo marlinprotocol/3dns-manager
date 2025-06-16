@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use alloy::{
-    primitives::{address, keccak256, U256}, signers::{local::PrivateKeySigner, SignerSync}, sol
+    primitives::{address, keccak256}, signers::{local::PrivateKeySigner, SignerSync}, sol
 };
 use alloy::sol_types::eip712_domain;
 use std::env;
@@ -15,7 +15,7 @@ pub struct MessageSigner {
 // Define the EIP-712 struct that matches your Solidity contract
 sol! {
     #[derive(Debug)]
-    struct SetDNSRecords {
+    struct setDNSRecords {
         bytes32 domain_id;
         bytes32 recordsHash;
     }
@@ -29,10 +29,12 @@ impl MessageSigner {
     pub async fn init(&mut self) -> Result<()> {
         let domain_id = env::var("DOMAIN_ID").context("DOMAIN_ID environment variable not set")?;
         
-        let path = format!("DNS-RECORD-SIGNER-{}", domain_id);
+        let path = format!("http://127.0.0.1:1101/derive/secp256k1?path=DNS-RECORD-SIGNER-{}", domain_id);
+
+        println!("Requesting key from KMS at: {}", path);
         
         let key_bytes: [u8; 32] =
-            ureq::get(&format!("http://127.0.0.1:1101/derive/secp256k1?path={}", path))
+            ureq::get(path)
                 .call()
                 .context("Failed to send KMS request")?
                 .into_body()
@@ -48,15 +50,19 @@ impl MessageSigner {
 
 
     pub async fn sign_message(&self, message: &str, domain_name: &str) -> Result<String> {
+        println!("In the sign message section");
         let key = self.key.as_ref().context("Signer not initialized")?;
         let signer = PrivateKeySigner::from_bytes(key.into())?;
+
+        let signer_address = signer.address();
+        println!("Signer address: {}", signer_address);
     
         let domain_id = namehash(domain_name); 
         let records_hash = keccak256(message.as_bytes());
     
         // Create the struct instance
-        let set_dns_records = SetDNSRecords {
-            domain_id,
+        let set_dns_records = setDNSRecords {
+            domain_id: domain_id,
             recordsHash: records_hash,
         };
     
@@ -65,20 +71,18 @@ impl MessageSigner {
             name: "DNS Manager",
             version: "1", 
             chain_id: 10,
-            verifying_contract: address!("0x63f90a1b481a039ce1f7f350f74ffd6e56cfde54"),
+            verifying_contract: address!("0xB5e7d42440738df2270749E336329fA1A360C313"),
         };
     
         // Sign the typed data
         let signature = signer.sign_typed_data_sync(&set_dns_records, &eip712_domain_obj)?;
-    
-        let signer_address = signer.address();
-        println!("Signer address: {}", signer_address);
     
         Ok(hex::encode(signature.as_bytes()))
     }
     
     // Alternative implementation if you prefer manual struct creation:
     pub async fn _sign_message_manual(&self, message: &str, domain_name: &str) -> Result<String> {
+        println!("In the sign message manual section");
         let key = self.key.as_ref().context("Signer not initialized")?;
         let signer = PrivateKeySigner::from_bytes(key.into())?;
     
@@ -102,7 +106,7 @@ impl MessageSigner {
             name: "DNS Manager",
             version: "1",
             chain_id: 10, 
-            verifying_contract: address!("0x63f90a1b481a039ce1f7f350f74ffd6e56cfde54"),
+            verifying_contract: address!("0xB5e7d42440738df2270749E336329fA1A360C313"),
         };
     
         // Get domain separator

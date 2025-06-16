@@ -234,7 +234,7 @@ pub async fn transfer_domain(
             new_owner,
             token_id,
             U256::from(1),
-            "0x".into(),
+            "".into(),
         ) // 40 gwei
         .send()
         .await?

@@ -185,6 +185,8 @@ async fn generate_encoded_dns_records(acme_services: Vec<String>, ttl: u32, sign
     // Sign the encoded records
     let signature = signer.sign_message(&encoded_records,&domain)
         .await.map_err(|e| eyre::eyre!("Failed to sign A record: {}", e))?;
+
+    println!("Signature: {}", signature);
     
     // Return signed response (base encoded record + signature appended)
     Ok(format!("{}:{}", encoded_records, signature))
