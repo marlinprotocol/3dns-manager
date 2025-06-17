@@ -78,8 +78,6 @@ impl MessageSigner {
         let eip712_domain_obj = eip712_domain! {
         name: "DomainManager",
         version: "1.0.0",
-        chain_id: 10,
-        verifying_contract: address!("0xB5e7d42440738df2270749E336329fA1A360C313"),
         };
 
         println!("EIP-712 Domain: {:?}", eip712_domain_obj);
