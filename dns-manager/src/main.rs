@@ -1,11 +1,11 @@
+use alloy::primitives::{keccak256, B256};
+use dotenv;
 use eyre::Result;
 use ip_checker::get_public_ip;
+use std::sync::Arc;
 use std::{env, time::Duration};
 use tokio;
-use dotenv;
-use warp::{self, Filter, http::Response};
-use std::sync::Arc;
-use alloy::primitives::{keccak256, B256};
+use warp::{self, http::Response, Filter};
 
 mod acme_manager;
 use acme_manager::ACMEManager;
@@ -24,9 +24,14 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
 
     // Get configuration from environment variables
-    let port = env::var("PORT").unwrap_or_else(|_| "8004".to_string()).parse::<u16>()
+    let port = env::var("PORT")
+        .unwrap_or_else(|_| "8004".to_string())
+        .parse::<u16>()
         .expect("PORT must be a valid port number");
-    let acme_env = env::var("ACME").unwrap_or_else(|_| "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org-directory".to_string());
+    let acme_env = env::var("ACME").unwrap_or_else(|_| {
+        "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org-directory"
+            .to_string()
+    });
     let acme_services: Vec<String> = acme_env.split(',').map(|s| s.trim().to_string()).collect();
     println!("ACME services: {:?}", acme_services);
 
@@ -78,20 +83,32 @@ async fn main() -> Result<()> {
 }
 
 /// Generate and encode DNS records
-async fn get_encoded_dns_records(acme_services: Vec<String>, ttl_param: TtlParam, signer: Arc<MessageSigner>) -> Result<impl warp::Reply, warp::Rejection> {
+async fn get_encoded_dns_records(
+    acme_services: Vec<String>,
+    ttl_param: TtlParam,
+    signer: Arc<MessageSigner>,
+) -> Result<impl warp::Reply, warp::Rejection> {
     let ttl = ttl_param.ttl.unwrap_or(3600);
     match generate_encoded_dns_records(acme_services, ttl, signer).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
-        Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),
+        Err(e) => Ok(Response::builder()
+            .status(500)
+            .body(format!("Error: {}", e))),
     }
 }
 
 /// Generate and encode CAA records for all ACME services together
-async fn get_encoded_caa_records(acme_services: Vec<String>, ttl_param: TtlParam, signer: Arc<MessageSigner>) -> Result<impl warp::Reply, warp::Rejection> {
+async fn get_encoded_caa_records(
+    acme_services: Vec<String>,
+    ttl_param: TtlParam,
+    signer: Arc<MessageSigner>,
+) -> Result<impl warp::Reply, warp::Rejection> {
     let ttl = ttl_param.ttl.unwrap_or(3600);
     match generate_encoded_caa_records(acme_services, ttl, signer).await {
         Ok(encoded) => Ok(Response::builder().body(encoded)),
-        Err(e) => Ok(Response::builder().status(500).body(format!("Error: {}", e))),
+        Err(e) => Ok(Response::builder()
+            .status(500)
+            .body(format!("Error: {}", e))),
     }
 }
 
@@ -99,7 +116,7 @@ fn get_caa_record_data(acme: &str) -> Result<String> {
     let acme_manager = ACMEManager::new(
         acme.to_string(),
         "default".to_string(),
-        "default".to_string()
+        "default".to_string(),
     );
     let max_retries = 50;
     let retry_delay = Duration::from_secs(2);
@@ -110,10 +127,17 @@ fn get_caa_record_data(acme: &str) -> Result<String> {
             Ok(response) => return Ok(response),
             Err(err) => {
                 if attempt >= max_retries {
-                    return Err(eyre::eyre!("Failed to get CAA record data for {} after {} attempts: {:?}", acme, max_retries, err));
+                    return Err(eyre::eyre!(
+                        "Failed to get CAA record data for {} after {} attempts: {:?}",
+                        acme,
+                        max_retries,
+                        err
+                    ));
                 }
-                eprintln!("Attempt {}/{}: Error fetching CAA data for {}: {:?}",
-                    attempt, max_retries, acme, err);
+                eprintln!(
+                    "Attempt {}/{}: Error fetching CAA data for {}: {:?}",
+                    attempt, max_retries, acme, err
+                );
                 eprintln!("Retrying in {} seconds...", retry_delay.as_secs());
                 std::thread::sleep(retry_delay);
             }
@@ -122,10 +146,16 @@ fn get_caa_record_data(acme: &str) -> Result<String> {
 }
 
 /// Generate all CAA records for all ACME services (returns Vec<DnsRecord>)
-async fn generate_caa_records(acme_services: Vec<String>, ttl: u32, domain: &str) -> Result<Vec<dns_encoder::DnsRecord>> {
+async fn generate_caa_records(
+    acme_services: Vec<String>,
+    ttl: u32,
+    domain: &str,
+) -> Result<Vec<dns_encoder::DnsRecord>> {
     let mut caa_records = Vec::new();
     for acme in acme_services {
-        let caa_record_data = tokio::task::spawn_blocking(move || get_caa_record_data(&acme)).await.unwrap()?;
+        let caa_record_data = tokio::task::spawn_blocking(move || get_caa_record_data(&acme))
+            .await
+            .unwrap()?;
         let caa_record = dns_encoder::DnsRecord {
             domain: domain.to_string(),
             record_type: 257, // CAA record type
@@ -139,7 +169,11 @@ async fn generate_caa_records(acme_services: Vec<String>, ttl: u32, domain: &str
 }
 
 /// Generate and encode all CAA records together for all ACME services
-async fn generate_encoded_caa_records(acme_services: Vec<String>, ttl: u32, signer: Arc<MessageSigner>) -> Result<String> {
+async fn generate_encoded_caa_records(
+    acme_services: Vec<String>,
+    ttl: u32,
+    signer: Arc<MessageSigner>,
+) -> Result<String> {
     let domain = env::var("DOMAIN_NAME").expect("DOMAIN_NAME must be set");
     let caa_records = generate_caa_records(acme_services, ttl, &domain).await?;
 
@@ -148,14 +182,20 @@ async fn generate_encoded_caa_records(acme_services: Vec<String>, ttl: u32, sign
         .map_err(|e| eyre::eyre!("Failed to encode CAA records: {}", e))?;
 
     // Sign the combined encoded records
-    let signature = signer.sign_message(&encoded_records,&domain)
-        .await.map_err(|e| eyre::eyre!("Failed to sign CAA records: {}", e))?;
+    let signature = signer
+        .sign_message(&encoded_records, &domain)
+        .await
+        .map_err(|e| eyre::eyre!("Failed to sign CAA records: {}", e))?;
 
     Ok(format!("{}:{}", encoded_records, signature))
 }
 
 /// Generate encoded DNS records
-async fn generate_encoded_dns_records(acme_services: Vec<String>, ttl: u32, signer: Arc<MessageSigner>) -> Result<String> {
+async fn generate_encoded_dns_records(
+    acme_services: Vec<String>,
+    ttl: u32,
+    signer: Arc<MessageSigner>,
+) -> Result<String> {
     println!("Fetching public IP...");
     let ip = get_public_ip().await;
     println!("Current Public IP: {}", ip);
@@ -183,11 +223,13 @@ async fn generate_encoded_dns_records(acme_services: Vec<String>, ttl: u32, sign
     println!("Encoded A record: {}", encoded_records);
 
     // Sign the encoded records
-    let signature = signer.sign_message(&encoded_records,&domain)
-        .await.map_err(|e| eyre::eyre!("Failed to sign A record: {}", e))?;
+    let signature = signer
+        .sign_message(&encoded_records, &domain)
+        .await
+        .map_err(|e| eyre::eyre!("Failed to sign A record: {}", e))?;
 
     println!("Signature: {}", signature);
-    
+
     // Return signed response (base encoded record + signature appended)
     Ok(format!("{}:{}", encoded_records, signature))
 }
