@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use alloy::{
-    primitives::{address, keccak256}, signers::{local::PrivateKeySigner, SignerSync}, sol
+    dyn_abi::DynSolValue, primitives::{address, keccak256, Address, B256, U256}, signers::{local::PrivateKeySigner, SignerSync}, sol
 };
 use alloy::sol_types::eip712_domain;
+use warp::filters::body::bytes;
 use std::env;
 
 use crate::namehash;
@@ -68,8 +69,8 @@ impl MessageSigner {
     
         // Create EIP-712 domain - this should match your contract's domain
         let eip712_domain_obj = eip712_domain! {
-            name: "DNS Manager",
-            version: "1", 
+            name: "DomainManager",
+            version: "1.0.0", 
             chain_id: 10,
             verifying_contract: address!("0xB5e7d42440738df2270749E336329fA1A360C313"),
         };
@@ -82,50 +83,42 @@ impl MessageSigner {
     
     // Alternative implementation if you prefer manual struct creation:
     pub async fn _sign_message_manual(&self, message: &str, domain_name: &str) -> Result<String> {
-        println!("In the sign message manual section");
         let key = self.key.as_ref().context("Signer not initialized")?;
         let signer = PrivateKeySigner::from_bytes(key.into())?;
-    
+
+        println!("Signer address: {}", signer.address());
+
         let domain_id = namehash(domain_name); 
         let records_hash = keccak256(message.as_bytes());
-    
-        // Manual EIP-712 encoding to match Solidity exactly
-        let type_hash = keccak256("SetDNSRecords(bytes32 domain_id,bytes32 recordsHash)");
-        
-        // This matches: abi.encode(SET_RECORDS_TYPEHASH, domain_id, keccak256(records))
-        let struct_hash = keccak256(
-            [
-                type_hash.as_slice(),
-                domain_id.as_slice(), 
-                records_hash.as_slice()
-            ].concat()
-        );
-    
-        // Create EIP-712 domain
-        let eip712_domain_obj = eip712_domain! {
-            name: "DNS Manager",
-            version: "1",
-            chain_id: 10, 
-            verifying_contract: address!("0xB5e7d42440738df2270749E336329fA1A360C313"),
-        };
-    
-        // Get domain separator
-        let domain_separator = eip712_domain_obj.hash_struct();
-        
-        // Create typed data hash: keccak256("\x19\x01" + domain_separator + struct_hash)
-        let typed_data_hash = keccak256(
-            [
-                b"\x19\x01".as_slice(),
-                domain_separator.as_slice(),
-                struct_hash.as_slice()
-            ].concat()
-        );
-    
+
+
+        let domain_value = DynSolValue::Tuple(vec![
+            DynSolValue::String("DNS Manager".to_string()),
+            DynSolValue::String("1".to_string()),
+            DynSolValue::Uint(U256::from(10), 256),
+            DynSolValue::Address(Address::from({
+                let bytes: [u8; 20] = hex::decode("B5e7d42440738df2270749E336329fA1A360C313").unwrap().try_into().unwrap();
+                bytes
+            })),
+        ]);
+
+        let message_value = DynSolValue::Tuple(vec![
+            DynSolValue::FixedBytes(domain_id.into(), 32),
+            DynSolValue::FixedBytes(records_hash.into(), 32),
+        ]);
+
+        // Encode the domain and message
+        let encoded_domain = domain_value.abi_encode();
+        let encoded_message = message_value.abi_encode();
+
+        // Calculate EIP-712 hash
+        let domain_separator = keccak256(&encoded_domain);
+        let message_hash = keccak256(&encoded_message);
+        let eip712_hash = keccak256([&[0x19, 0x01], &domain_separator[..], &message_hash[..]].concat());
+
         // Sign the hash
-        let signature = signer.sign_hash_sync(&typed_data_hash)?;
-    
-        println!("Signer address: {}", signer.address());
-    
+        let signature = signer.sign_hash_sync(&eip712_hash)?;
+
         Ok(hex::encode(signature.as_bytes()))
     }
 }

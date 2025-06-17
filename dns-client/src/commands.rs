@@ -76,7 +76,7 @@ async fn query_and_set_dns_record(
     }
 
     let dns_record = parts[0].to_string();
-    let signature = parts[1].trim_start_matches("0x").to_string();
+    let signature = parts[1].to_string();
 
     println!("Received record: {}", dns_record);
     println!("Received signature: {}", signature);
