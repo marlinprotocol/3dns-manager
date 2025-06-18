@@ -31,7 +31,11 @@ pub async fn get_public_ip() -> String {
 }
 
 /// Helper function to get IP from a specified URL
-async fn get_ip_from_url(client: &Client, url: &str, timeout: Duration) -> Result<String, reqwest::Error> {
+async fn get_ip_from_url(
+    client: &Client,
+    url: &str,
+    timeout: Duration,
+) -> Result<String, reqwest::Error> {
     client
         .get(url)
         .timeout(timeout)
