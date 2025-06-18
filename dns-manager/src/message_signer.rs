@@ -1,28 +1,17 @@
-use alloy::sol_types::eip712_domain;
 use alloy::{
-    primitives::{address, keccak256, B256},
-    signers::{local::PrivateKeySigner, Signer, SignerSync},
-    sol,
-    sol_types::SolStruct,
+    dyn_abi::DynSolValue,
+    primitives::{keccak256, Address, U256},
+    signers::{local::PrivateKeySigner, SignerSync},
+    hex,
 };
 use anyhow::{Context, Result};
-use serde::Serialize;
-use std::env;
+use std::{env, str::FromStr};
 
 use crate::namehash;
 
 #[derive(Debug)]
 pub struct MessageSigner {
     key: Option<[u8; 32]>,
-}
-
-// Define the EIP-712 struct that matches your Solidity contract
-sol! {
-    #[derive(Serialize)]
-    struct setDNSRecords {
-        bytes32 domain_id;
-        bytes32 recordsHash;
-    }
 }
 
 impl MessageSigner {
@@ -59,42 +48,69 @@ impl MessageSigner {
         let key = self.key.as_ref().context("Signer not initialized")?;
         let signer = PrivateKeySigner::from_bytes(key.into())?;
 
+        println!("Message");
+        println!("Message: {}", message);
+        let msg = hex::decode(message)?;
+
         let signer_address = signer.address();
         println!("Signer address: {}", signer_address);
 
         let domain_id = namehash(domain_name);
-        let records_hash = keccak256(message);
+        let records_hash = keccak256(msg);
 
         println!("Domain ID: {:?}", domain_id);
-        println!("Records Hash: {:?}", records_hash);
+        println!("Records Hash value: {:?}", records_hash);
 
-        // Create the struct instance
-        let set_dns_records = setDNSRecords {
-            domain_id: domain_id,
-            recordsHash: records_hash,
-        };
+        let domain_value = DynSolValue::Tuple(vec![
+            DynSolValue::String("DomainManager".to_string()),
+            DynSolValue::String("1.0.0".to_string()),
+            DynSolValue::Uint(U256::from(10), 256), // chainId - adjust as needed
+            DynSolValue::Address(Address::from_str("0xB5e7d42440738df2270749E336329fA1A360C313")?),    // verifyingContract - adjust as needed
+        ]);
 
-        // Create EIP-712 domain - this should match your contract's domain
-        let eip712_domain_obj = eip712_domain! {
-        name: "DomainManager",
-        version: "1.0.0",
-        };
+        println!("Domain Value: {:?}", domain_value);
 
-        println!("EIP-712 Domain: {:?}", eip712_domain_obj);
 
-        println!(
-            "EIP-712 seperator: {}",
-            eip712_domain_obj.separator()
-        );
+        let message_value = DynSolValue::Tuple(vec![
+            DynSolValue::FixedBytes(domain_id, 32),
+            DynSolValue::FixedBytes(records_hash, 32),
+        ]);
 
-        let hash = set_dns_records.eip712_signing_hash(&eip712_domain_obj);
-        println!("Signing hash: {:?}", hash);
-        let signature = signer
-            .sign_hash_sync(&hash)?;
+        // Encode the domain and message
+        let encoded_domain = domain_value.abi_encode();
+        let encoded_message = message_value.abi_encode();
+
+        println!("Encoded domain: 0x{}", hex::encode(&encoded_domain));
+        println!("Encoded message: 0x{}", hex::encode(&encoded_message));
+
+        // Calculate type hash for setDNSRecords
+        let type_string = "setDNSRecords(bytes32 domain_id, bytes32 recordsHash)";
+        let type_hash = keccak256(type_string);
+        println!("Type hash: 0x{}", type_hash);
+
+        // Calculate struct hash: keccak256(abi.encode(TYPE_HASH, domain_id, recordsHash))
+        let struct_hash_data = [
+            &type_hash[..],
+            &domain_id[..],
+            &records_hash[..]
+        ].concat();
+        let struct_hash = keccak256(&struct_hash_data);
+        println!("Struct hash: 0x{}", hex::encode(struct_hash));
+
+        // Calculate domain separator
+        let domain_separator = keccak256(&encoded_domain);
+        println!("Domain separator: 0x{}", hex::encode(domain_separator));
+
+        // Calculate EIP-712 hash: keccak256("\x19\x01" + domainSeparator + structHash)
+        let eip712_hash = keccak256([&[0x19, 0x01], &domain_separator[..], &struct_hash[..]].concat());
+        println!("EIP-712 hash: 0x{}", hex::encode(eip712_hash));
+
+        // Sign the hash
+        let signature = signer.sign_hash_sync(&eip712_hash)?;
 
         println!(
             "Recovered wallet address: {}",
-            signature.recover_address_from_prehash(&hash)?
+            signature.recover_address_from_prehash(&eip712_hash)?
         );
 
         Ok(signature.to_string())
