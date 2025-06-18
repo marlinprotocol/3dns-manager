@@ -125,6 +125,7 @@ pub async fn call_set_dns_records(
 
     // Convert encoded_records to bytes
     let records_bytes = Bytes::from(encoded_records.as_bytes().to_vec());
+    println!("Contract DNS records: {:?}", records_bytes);
 
     // Convert signature to bytes
     let signature_bytes = Bytes::from(hex::decode(signature).expect("Failed to decode signature"));
