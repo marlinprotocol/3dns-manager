@@ -1,9 +1,13 @@
-use anyhow::{Context, Result};
-use alloy::{
-    primitives::{address, keccak256}, signers::{local::PrivateKeySigner, SignerSync}, sol
-};
-
+use alloy::primitives::Bytes;
 use alloy::sol_types::eip712_domain;
+use alloy::{
+    primitives::{address, keccak256},
+    signers::{local::PrivateKeySigner, SignerSync},
+    sol,
+    sol_types::SolStruct,
+};
+use anyhow::{Context, Result};
+use std::env;
 
 use crate::namehash;
 
@@ -15,7 +19,7 @@ pub struct MessageSigner {
 // Define the EIP-712 struct that matches your Solidity contract
 sol! {
     #[derive(Debug)]
-    struct SetDNSRecords {
+    struct setDNSRecords {
         bytes32 domain_id;
         bytes32 recordsHash;
     }
@@ -27,98 +31,78 @@ impl MessageSigner {
     }
 
     pub async fn init(&mut self) -> Result<()> {
-        // todo: update path -- generate domain id from domain name
-        let key_bytes: [u8; 32] =
-            ureq::get("http://127.0.0.1:1101/derive/secp256k1?path=signing-server")
-                .call()
-                .context("Failed to send KMS request")?
-                .into_body()
-                .read_to_vec()
-                .context("Failed to read body")?[0..32]
-                .try_into()
-                .context("Failed to convert bytes")?;
+        let domain_id = env::var("DOMAIN_ID").context("DOMAIN_ID environment variable not set")?;
+
+        let path = format!(
+            "http://127.0.0.1:1101/derive/secp256k1?path=DNS-RECORD-SIGNER-{}",
+            domain_id
+        );
+
+        println!("Requesting key from KMS at: {}", path);
+
+        let key_bytes: [u8; 32] = ureq::get(path)
+            .call()
+            .context("Failed to send KMS request")?
+            .into_body()
+            .read_to_vec()
+            .context("Failed to read body")?[0..32]
+            .try_into()
+            .context("Failed to convert bytes")?;
 
         self.key = Some(key_bytes);
 
         Ok(())
     }
 
-
     pub async fn sign_message(&self, message: &str, domain_name: &str) -> Result<String> {
+        println!("In the sign message section");
         let key = self.key.as_ref().context("Signer not initialized")?;
         let signer = PrivateKeySigner::from_bytes(key.into())?;
-    
-        let domain_id = namehash(domain_name); 
-        let records_hash = keccak256(message.as_bytes());
-    
-        // Create the struct instance
-        let set_dns_records = SetDNSRecords {
-            domain_id,
-            recordsHash: records_hash,
-        };
-    
-        // Create EIP-712 domain - this should match your contract's domain
-        let eip712_domain_obj = eip712_domain! {
-            name: "DNS Manager",
-            version: "1", 
-            chain_id: 10,
-            verifying_contract: address!("0x63f90a1b481a039ce1f7f350f74ffd6e56cfde54"),
-        };
-    
-        // Sign the typed data
-        let signature = signer.sign_typed_data_sync(&set_dns_records, &eip712_domain_obj)?;
-    
+        let msg = Bytes::from(message.as_bytes().to_vec());
+
         let signer_address = signer.address();
         println!("Signer address: {}", signer_address);
-    
-        Ok(hex::encode(signature.as_bytes()))
-    }
-    
-    // Alternative implementation if you prefer manual struct creation:
-    pub async fn sign_message_manual(&self, message: &str, domain_name: &str) -> Result<String> {
-        let key = self.key.as_ref().context("Signer not initialized")?;
-        let signer = PrivateKeySigner::from_bytes(key.into())?;
-    
-        let domain_id = namehash(domain_name); 
-        let records_hash = keccak256(message.as_bytes());
-    
-        // Manual EIP-712 encoding to match Solidity exactly
-        let type_hash = keccak256("SetDNSRecords(bytes32 domain_id,bytes32 recordsHash)");
-        
-        // This matches: abi.encode(SET_RECORDS_TYPEHASH, domain_id, keccak256(records))
-        let struct_hash = keccak256(
-            [
-                type_hash.as_slice(),
-                domain_id.as_slice(), 
-                records_hash.as_slice()
-            ].concat()
-        );
-    
-        // Create EIP-712 domain
-        let eip712_domain_obj = eip712_domain! {
-            name: "DNS Manager",
-            version: "1",
-            chain_id: 10, 
-            verifying_contract: address!("0x63f90a1b481a039ce1f7f350f74ffd6e56cfde54"),
+
+        let domain_id = namehash(domain_name);
+        let records_hash = keccak256(msg);
+
+        // Create the struct instance
+        let set_dns_records = setDNSRecords {
+            domain_id: domain_id,
+            recordsHash: records_hash,
         };
-    
-        // Get domain separator
-        let domain_separator = eip712_domain_obj.hash_struct();
-        
-        // Create typed data hash: keccak256("\x19\x01" + domain_separator + struct_hash)
-        let typed_data_hash = keccak256(
-            [
-                b"\x19\x01".as_slice(),
-                domain_separator.as_slice(),
-                struct_hash.as_slice()
-            ].concat()
+
+
+
+        // Debug: Check what EIP-712 encode type generates
+        let eip712_type_string = setDNSRecords::eip712_encode_type();
+        println!("EIP-712 type string: {}", eip712_type_string);
+        println!(
+            "EIP-712 type hash: {:?}",
+            setDNSRecords::eip712_type_hash(&set_dns_records)
         );
-    
-        // Sign the hash
-        let signature = signer.sign_hash_sync(&typed_data_hash)?;
-    
-        println!("Signer address: {}", signer.address());
-    
-        Ok(hex::encode(signature.as_bytes()))
+
+        // Create EIP-712 domain - this should match your contract's domain
+        let eip712_domain_obj = eip712_domain! {
+            name: "DomainManager",
+            version: "1.0.0",
+            chain_id: 10,
+            verifying_contract: address!("0xB5e7d42440738df2270749E336329fA1A360C313"),
+        };
+
+        println!("EIP-712 seperator: {}", eip712_domain_obj.separator());
+
+        // Debug: Print the struct hash to verify encoding
+        let struct_hash = set_dns_records.eip712_hash_struct();
+        println!("Struct hash: {:?}", struct_hash);
+
+        // Debug: Print the type hash to verify it matches Solidity
+        println!("Type hash: {:?}", set_dns_records.eip712_type_hash());
+
+        // Sign the typed data
+        let signature = signer.sign_typed_data_sync(&set_dns_records, &eip712_domain_obj)?;
+        let encoded_signature = hex::encode(signature.as_bytes());
+        println!("Encoded signature: {}", encoded_signature);
+        Ok(encoded_signature)
     }
 }

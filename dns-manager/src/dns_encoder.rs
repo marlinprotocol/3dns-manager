@@ -22,10 +22,8 @@ impl DnsRecord {
             while buffer[offset] != 0 {
                 let length = buffer[offset] as usize;
                 offset += 1;
-                
-                let label = String::from_utf8(
-                    buffer[offset..offset + length].to_vec()
-                )?;
+
+                let label = String::from_utf8(buffer[offset..offset + length].to_vec())?;
                 domain_parts.push(label);
                 offset += length;
             }
@@ -45,7 +43,12 @@ impl DnsRecord {
             offset += 2;
 
             // Read TTL (4 bytes)
-            let ttl = u32::from_be_bytes([buffer[offset], buffer[offset + 1], buffer[offset + 2], buffer[offset + 3]]);
+            let ttl = u32::from_be_bytes([
+                buffer[offset],
+                buffer[offset + 1],
+                buffer[offset + 2],
+                buffer[offset + 3],
+            ]);
             offset += 4;
 
             // Read data length (2 bytes)
@@ -53,9 +56,7 @@ impl DnsRecord {
             offset += 2;
 
             // Read data
-            let data = String::from_utf8(
-                buffer[offset..offset + data_length as usize].to_vec()
-            )?;
+            let data = String::from_utf8(buffer[offset..offset + data_length as usize].to_vec())?;
             offset += data_length as usize;
 
             let record = DnsRecord {
@@ -73,7 +74,7 @@ impl DnsRecord {
 
     pub fn encode_dns_records(records: &[DnsRecord]) -> Result<String, Box<dyn Error>> {
         let mut buffer = Vec::new();
-        
+
         for record in records {
             // Encode domain name
             for part in record.domain.split('.') {
@@ -84,15 +85,16 @@ impl DnsRecord {
 
             // Encode record type (2 bytes)
             buffer.extend_from_slice(&record.record_type.to_be_bytes());
-            
+
             // Encode class (2 bytes)
             buffer.extend_from_slice(&record.class.to_be_bytes());
-            
+
             // Encode TTL (4 bytes)
             buffer.extend_from_slice(&record.ttl.to_be_bytes());
-            
+
             // Encode data according to record type
-            if record.record_type == 2 { // NS record
+            if record.record_type == 2 {
+                // NS record
                 let mut data_buffer = Vec::new();
                 // Convert plain hostname (e.g. "archer.ns.cloudflare.com") to DNS format
                 for part in record.data.split('.') {
@@ -100,7 +102,7 @@ impl DnsRecord {
                     data_buffer.extend_from_slice(part.as_bytes());
                 }
                 data_buffer.push(0); // Null terminator
-                
+
                 // Write length and data
                 buffer.extend_from_slice(&(data_buffer.len() as u16).to_be_bytes());
                 buffer.extend_from_slice(&data_buffer);
