@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use alloy::{
     network::EthereumWallet,
     primitives::{keccak256, Address, Bytes, B256, U256},
@@ -124,11 +126,12 @@ pub async fn call_set_dns_records(
     let domain_id = namehash(&domain);
 
     // Convert encoded_records to bytes
-    let records_bytes = Bytes::from(encoded_records.as_bytes().to_vec());
+    let records_bytes = Bytes::from_str(&encoded_records)?;
     println!("Contract DNS records: {:?}", records_bytes);
 
     // Convert signature to bytes
     let signature_bytes = Bytes::from(hex::decode(signature).expect("Failed to decode signature"));
+    println!("Signature bytes: {:?}", signature_bytes);
 
     // Decode private key
     let private_key =
@@ -156,7 +159,7 @@ pub async fn call_set_dns_records(
     // Call the setDNSRecords function
     println!("Calling setDNSRecords for domain: {}", domain);
     let tx_hash = dns_manager
-        .setDNSRecords(domain_id, records_bytes, signature_bytes)
+        .setDNSRecords(domain_id, records_bytes, signature_bytes) // 40 gwei
         .send()
         .await?
         .watch()

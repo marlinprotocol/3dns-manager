@@ -8,6 +8,7 @@ use alloy::{
 };
 use anyhow::{Context, Result};
 use std::env;
+use std::str::FromStr;
 
 use crate::namehash;
 
@@ -58,7 +59,7 @@ impl MessageSigner {
         println!("In the sign message section");
         let key = self.key.as_ref().context("Signer not initialized")?;
         let signer = PrivateKeySigner::from_bytes(key.into())?;
-        let msg = Bytes::from(message.as_bytes().to_vec());
+        let msg = Bytes::from_str(message)?;
 
         let signer_address = signer.address();
         println!("Signer address: {}", signer_address);
@@ -71,8 +72,6 @@ impl MessageSigner {
             domain_id: domain_id,
             recordsHash: records_hash,
         };
-
-
 
         // Debug: Check what EIP-712 encode type generates
         let eip712_type_string = setDNSRecords::eip712_encode_type();
