@@ -121,8 +121,7 @@ impl ACMEManager {
 
         // NOTE: Assumes letsencrypt.org is the only CA
         Ok(format!(
-            "0 issue \"letsencrypt.org; accounturi={}\"",
-            acme_id
+            "0 issue letsencrypt.org"
         ))
     }
 
