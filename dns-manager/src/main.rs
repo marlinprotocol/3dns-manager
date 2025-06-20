@@ -212,11 +212,11 @@ async fn generate_encoded_dns_records(
     };
 
     // Encode the record
-    let mut dns_records = vec![a_record];
+    let dns_records = vec![a_record];
 
-    // Generate CAA records
-    let caa_records = generate_caa_records(acme_services, ttl, &domain).await?;
-    dns_records.extend(caa_records);
+    // // Generate CAA records
+    // let caa_records = generate_caa_records(acme_services, ttl, &domain).await?;
+    // dns_records.extend(caa_records);
 
     let encoded_records = dns_encoder::DnsRecord::encode_dns_records(&dns_records)
         .map_err(|e| eyre::eyre!("Failed to encode A record: {}", e))?;

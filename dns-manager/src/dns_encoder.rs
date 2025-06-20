@@ -1,5 +1,30 @@
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::fmt;
+
+#[derive(Debug)]
+pub enum DnsError {
+    InvalidDomain(String),
+    InvalidData(String),
+}
+
+impl fmt::Display for DnsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DnsError::InvalidDomain(msg) => write!(f, "Invalid domain: {}", msg),
+            DnsError::InvalidData(msg) => write!(f, "Invalid data: {}", msg),
+        }
+    }
+}
+
+impl Error for DnsError {}
+
+pub const TYPE_A: u16 = 1;     // IPv4 address
+pub const TYPE_NS: u16 = 2;    // Nameserver
+pub const TYPE_CNAME: u16 = 5; // Canonical name
+pub const TYPE_MX: u16 = 15;   // Mail exchange
+pub const TYPE_TXT: u16 = 16;  // Text
+pub const TYPE_AAAA: u16 = 28; // IPv6 address
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DnsRecord {
@@ -11,65 +36,85 @@ pub struct DnsRecord {
 }
 
 impl DnsRecord {
-    pub fn decode_dns_records(hex_data: &str) -> Result<Vec<DnsRecord>, Box<dyn Error>> {
-        let buffer = hex::decode(hex_data)?;
-        let mut records = Vec::new();
-        let mut offset = 0;
-
-        while offset < buffer.len() {
-            // Decode domain name
-            let mut domain_parts = Vec::new();
-            while buffer[offset] != 0 {
-                let length = buffer[offset] as usize;
-                offset += 1;
-
-                let label = String::from_utf8(buffer[offset..offset + length].to_vec())?;
-                domain_parts.push(label);
-                offset += length;
-            }
-            offset += 1; // Skip null byte
-
-            // Ensure we have enough bytes remaining
-            if offset + 10 > buffer.len() {
-                return Err("Incomplete DNS record data".into());
-            }
-
-            // Read record type (2 bytes)
-            let record_type = u16::from_be_bytes([buffer[offset], buffer[offset + 1]]);
-            offset += 2;
-
-            // Read class (2 bytes)
-            let class = u16::from_be_bytes([buffer[offset], buffer[offset + 1]]);
-            offset += 2;
-
-            // Read TTL (4 bytes)
-            let ttl = u32::from_be_bytes([
-                buffer[offset],
-                buffer[offset + 1],
-                buffer[offset + 2],
-                buffer[offset + 3],
-            ]);
-            offset += 4;
-
-            // Read data length (2 bytes)
-            let data_length = u16::from_be_bytes([buffer[offset], buffer[offset + 1]]);
-            offset += 2;
-
-            // Read data
-            let data = String::from_utf8(buffer[offset..offset + data_length as usize].to_vec())?;
-            offset += data_length as usize;
-
-            let record = DnsRecord {
-                domain: domain_parts.join("."),
-                record_type,
-                class,
-                ttl,
-                data,
-            };
-            records.push(record);
+    fn encode_domain(domain: &str) -> Result<Vec<u8>, DnsError> {
+        let mut buffer = Vec::new();
+        
+        if domain.len() > 255 {
+            return Err(DnsError::InvalidDomain("Domain name too long".to_string()));
         }
 
-        Ok(records)
+        for part in domain.split('.') {
+            if part.is_empty() {
+                return Err(DnsError::InvalidDomain("Empty label".to_string()));
+            }
+            if part.len() > 63 {
+                return Err(DnsError::InvalidDomain("Label too long".to_string()));
+            }
+            buffer.push(part.len() as u8);
+            buffer.extend_from_slice(part.as_bytes());
+        }
+        buffer.push(0); // Null terminator
+        Ok(buffer)
+    }
+
+    fn encode_data(&self) -> Result<Vec<u8>, DnsError> {
+        let mut data_buffer = Vec::new();
+
+        match self.record_type {
+            TYPE_A => {
+                // Validate and encode IPv4 address
+                let octets: Vec<&str> = self.data.split('.').collect();
+                if octets.len() != 4 {
+                    return Err(DnsError::InvalidData("Invalid IPv4 address".to_string()));
+                }
+                for octet in octets {
+                    match octet.parse::<u8>() {
+                        Ok(num) => data_buffer.push(num),
+                        Err(_) => return Err(DnsError::InvalidData("Invalid IPv4 octet".to_string())),
+                    }
+                }
+            },
+            TYPE_AAAA => {
+                // Validate and encode IPv6 address
+                for segment in self.data.split(':') {
+                    if segment.len() > 4 {
+                        return Err(DnsError::InvalidData("Invalid IPv6 segment".to_string()));
+                    }
+                    match u16::from_str_radix(segment, 16) {
+                        Ok(num) => data_buffer.extend_from_slice(&num.to_be_bytes()),
+                        Err(_) => return Err(DnsError::InvalidData("Invalid IPv6 segment".to_string())),
+                    }
+                }
+            },
+            TYPE_NS | TYPE_CNAME => {
+                // Encode domain name format
+                data_buffer.extend(Self::encode_domain(&self.data)?);
+            },
+            TYPE_MX => {
+                // Format: 2 bytes preference, then domain name
+                let parts: Vec<&str> = self.data.split(' ').collect();
+                if parts.len() != 2 {
+                    return Err(DnsError::InvalidData("MX record must have preference and domain".to_string()));
+                }
+                let preference = parts[0].parse::<u16>()
+                    .map_err(|_| DnsError::InvalidData("Invalid MX preference".to_string()))?;
+                data_buffer.extend_from_slice(&preference.to_be_bytes());
+                data_buffer.extend(Self::encode_domain(parts[1])?);
+            },
+            TYPE_TXT => {
+                if self.data.len() > 255 {
+                    return Err(DnsError::InvalidData("TXT record too long".to_string()));
+                }
+                data_buffer.push(self.data.len() as u8);
+                data_buffer.extend_from_slice(self.data.as_bytes());
+            },
+            _ => {
+                // For unknown types, encode data as-is
+                data_buffer.extend_from_slice(self.data.as_bytes());
+            }
+        }
+
+        Ok(data_buffer)
     }
 
     pub fn encode_dns_records(records: &[DnsRecord]) -> Result<String, Box<dyn Error>> {
@@ -77,11 +122,7 @@ impl DnsRecord {
 
         for record in records {
             // Encode domain name
-            for part in record.domain.split('.') {
-                buffer.push(part.len() as u8);
-                buffer.extend_from_slice(part.as_bytes());
-            }
-            buffer.push(0); // Null terminator
+            buffer.extend(Self::encode_domain(&record.domain)?);
 
             // Encode record type (2 bytes)
             buffer.extend_from_slice(&record.record_type.to_be_bytes());
@@ -92,25 +133,10 @@ impl DnsRecord {
             // Encode TTL (4 bytes)
             buffer.extend_from_slice(&record.ttl.to_be_bytes());
 
-            // Encode data according to record type
-            if record.record_type == 2 {
-                // NS record
-                let mut data_buffer = Vec::new();
-                // Convert plain hostname (e.g. "archer.ns.cloudflare.com") to DNS format
-                for part in record.data.split('.') {
-                    data_buffer.push(part.len() as u8);
-                    data_buffer.extend_from_slice(part.as_bytes());
-                }
-                data_buffer.push(0); // Null terminator
-
-                // Write length and data
-                buffer.extend_from_slice(&(data_buffer.len() as u16).to_be_bytes());
-                buffer.extend_from_slice(&data_buffer);
-            } else {
-                // For other record types, write data as-is
-                buffer.extend_from_slice(&(record.data.len() as u16).to_be_bytes());
-                buffer.extend_from_slice(record.data.as_bytes());
-            }
+            // Encode record data
+            let data_buffer = record.encode_data()?;
+            buffer.extend_from_slice(&(data_buffer.len() as u16).to_be_bytes());
+            buffer.extend_from_slice(&data_buffer);
         }
 
         Ok(hex::encode(buffer))
