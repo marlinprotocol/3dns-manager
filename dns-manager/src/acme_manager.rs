@@ -120,9 +120,7 @@ impl ACMEManager {
         let acme_id = self.get_ca_id(acme_dir, &self.default_email, &self.default_user)?;
         println!("ACME ID: {}", acme_id);
         // NOTE: Assumes letsencrypt.org is the only CA
-        Ok(format!(
-            "0 issue letsencrypt.org; accounturi={}", acme_id
-        ))
+        Ok(format!("0 issue letsencrypt.org; accounturi={}", acme_id))
     }
 
     pub fn get_acme_id_by_all(
