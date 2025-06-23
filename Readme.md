@@ -6,112 +6,176 @@ This project provides tools to manage frontend deployments using Oyster CVM and 
 
 - Rust (latest stable version)
 - Docker
-- Access to Optimism network
+- Access to the Optimism network
 - Wallet with sufficient funds for contract deployment
-- Domain name you want to manage
-- Oyster CVM CLI tool installed
+- Domain name to manage
+- Oyster CVM CLI tool (v4.0.0) installed
 
 ## Project Structure
 
 ```
 oyster-fe-manager/
 ├── dns-client/        # Rust client for DNS record management
-├── dns-manager/        # Rust manager to run inside the enclave      
+├── dns-manager/       # Rust manager to run inside the enclave      
 ├── caddy.json         # Caddy server configuration
-└── README.md          # This file
+└── Readme.md          # This file
 ```
 
 ## Setup
 
-1. Clone the repository:
-```bash
-git clone https://github.com/marlinprotocol/3dns-manager
-cd 3dns-manager
-```
+1. **Clone the repository:**
+    ```bash
+    git clone https://github.com/marlinprotocol/3dns-manager
+    cd 3dns-manager
+    ```
 
-2. Build the DNS client:
-```bash
-cd dns-client
-cargo build --release
-```
+2. **Build the DNS client:**
+    ```bash
+    cd dns-client
+    cargo build --release
+    ```
 
-## Deploying DNS Manager using Oyster CVM
+3. **Make dns-client globally available:**
+    Copy the built dns-client from the release folder to `/usr/local/bin/` and give it execute permission.
 
-1. Deploy the DNS manager to AWS using Oyster CVM:
-```bash
-oyster-cvm deploy \
-  --duration-in-minutes 20 \
-  --docker-compose ./docker-compose.yml \
-  --wallet-private-key <your-private-key> \
-  --debug \
-  --arch amd64 \
-  --instance-type c5n.xlarge \
-  --region us-west-2
-```
+    ```bash
+    sudo cp target/release/dns-client /usr/local/bin/
+    sudo chmod +x /usr/local/bin/dns-client
+    ```
 
-Key parameters explained:
-- `duration-in-minutes`: How long the instance should run
-- `docker-compose.yml`: Configuration file for the services
-- `arch`: CPU architecture (amd64 for most AWS instances)
-- `instance-type`: AWS EC2 instance type
-- `region`: AWS region for deployment
+## Deploying Frontends on Oyster with Domains
 
-2. After deployment, note down the enclave IP address from the deployment output. You'll need this for setting DNS records.
+1. **Buy a domain at [3dns](https://3dns.box/).**
+2. **Transfer the domain to the domain manager:**
+    ```bash
+    dns-client transfer-domain --domain letsgoo.tech --new-owner-wallet-address <DOMAIN_MANAGER_ADDRESS> --wallet-private-key *****
+    ```
+3. **Set WHOIS delegate:**
+    ```bash
+    dns-client set-whois --domain letsgoo.tech --delegate-wallet-address <DOMAIN_MANAGER_ADDRESS> --wallet-private-key *****
+    ```
+4. **Deploy KMS verifier contract:**
+    ```bash
+    oyster-cvm kms-contract deploy --wallet-private-key ****
+    ```
+5. **Compute the image ID:**
+    ```bash
+    oyster-cvm compute-image-id \
+      --contract-address 0x166EeA146F559FC842D37C5899632eef8B7FB458 \
+      --chain-id 42161 \
+      --docker-compose docker-compose.yml \
+      --arch amd64 \
+      --preset debug
+    ```
+6. **Approve the image ID in the contract:**
+    ```bash
+    oyster-cvm kms-contract approve \
+      --wallet-private-key <key> \
+      --image-id <image_id> \
+      --contract-address <address>
+    ```
+7. **Compute the domain ID:**
+    ```bash
+    dns-client compute-domain-id --domain letsgoo.tech
+    ```
+8. **Get the proof signature:**
+    ```bash
+    curl --location 'arbone-v4.kms.box:1101/derive/secp256k1/address/ethereum?address=<address>&path=DNS-RECORD-SIGNER-<domain-id>'
+    ```
+    **Note:**
+    - Note down the `kms-signer-address` from the response body.
+    - Note down the `x-marlin-kms-signature` from the response header.
+9. **Set the KMS keys:**
+    ```bash
+    dns-client set-kms-key \
+      --domain letsgoo.tech \
+      --kms-signer-address <KMS_SIGNER_ADDRESS> \
+      --proof <KMS_SIGNATURE> \
+      --wallet-private-key ******
+    ```
+10. **Build and push Docker images:**
+    - Build and push your website image:
+      ```bash
+      docker build -t <your_dockerhub_username>/oyster-fe-kit:latest .
+      docker push <your_dockerhub_username>/oyster-fe-kit:latest
+      ```
+    - Build and push the DNS manager image:
+      ```bash
+      cd dns-manager
+      docker build -t <your_dockerhub_username>/dns-manager:latest .
+      docker push <your_dockerhub_username>/dns-manager:latest
+      ```
+11. **Modify configuration files:**
+    - In `caddy.json`, set:
+      ```json
+      "host": ["<YOUR_DOMAIN_NAME>"]
+      ```
+    - In `docker-compose.yml`, update:
+      ```yaml
+      services:
+        caddy:
+          image: <DOCKERHUB_USERNAME>/oyster-fe-kit:latest
+          network_mode: host
+          volumes:
+            - caddy_data:/data
+            - caddy_config:/config
 
+        dns-manager:
+          image: <DOCKERHUB_USERNAME>/dns-manager:latest
+          network_mode: host
+          environment:
+            - DOMAIN_NAME=<DOMAIN_NAME>
+            - DOMAIN_ID=<DOMAIN_ID>
+          volumes:
+            - caddy_data:/data
 
-## Managing DNS Records
-
-The DNS client supports two main operations:
-- Setting DNS records (A and CAA records)
-- Setting WHOIS delegation
-
-### Setting DNS Records
-
-Use the following command to set DNS records:
-
-```bash
-dns-client set-dns \
-  --enclave-ip <enclave-ip> \
-  --wallet-private-key <your-private-key> \
-  --contract-address <contract-address> \
-  --domain <your-domain> \
-  --a-ttl <your-desired-ttl-value-for-A-record> \
-  --caa-ttl <your-desired-ttl-value-for-CAA-record> 
-```
-Note: a-ttl and caa-ttl are optional params. They default to 3600 seconds (1 hour) for both A record and CAA record.
-
-### Setting WHOIS Delegation
-
-To delegate WHOIS management to another wallet:
-
-```bash
-dns-client set-whois \
-  --domain <your-domain> \
-  --delegate-wallet-address <delegate-address> \
-  --contract-address <contract-address> \
-  --wallet-private-key <your-private-key>
-```
+      volumes:
+        caddy_data:
+        caddy_config:
+      ```
+12. **Deploy the entire setup with Oyster CVM:**
+    ```bash
+    oyster-cvm deploy \
+      --duration-in-minutes 180 \
+      --docker-compose ./docker-compose.yml \
+      --wallet-private-key *** \
+      --debug \
+      --arch amd64 \
+      --instance-type c5n.xlarge \
+      --contract-address <KMS_VERIFIER_CONTRACT> \
+      --chain-id 42161 \
+      --region us-west-2 \
+      --preset debug \
+      --image-url https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_amd64.eif
+    ```
+    **Note:** Note down the IP address returned by the Oyster CVM CLI. You will need this in the next step.
+13. **Set DNS records with the DNS client:**
+    ```bash
+    dns-client set-dns --domain letsgoo.tech --enclave-ip <ENCLAVE_IP> --wallet-private-key ****
+    ```
+14. **Wait for DNS propagation:**
+    It may take a few minutes for DNS propagation. Once complete, your site should be available at your domain.
 
 ## Important Notes
 
-1. Make sure your wallet has admin permissions on the contract before setting DNS records
-2. The enclave IP should be accessible from your machine
-3. Keep your private keys secure and never share them
-4. Always verify DNS propagation after making changes
+- Ensure your wallet has admin permissions on the contract before setting DNS records.
+- The enclave IP should be accessible from your machine.
+- Keep your private keys secure and never share them.
+- Always verify DNS propagation after making changes.
 
 ## Troubleshooting
 
-1. If you get "AccessControl" errors, ensure your wallet has admin permissions
-2. If DNS records are not updating, check:
-   - Contract transaction status
-   - DNS propagation time (can take up to 24 hours)
-   - Enclave connectivity
+- If you get "AccessControl" errors, ensure your wallet has admin permissions.
+- If DNS records are not updating, check:
+  - Contract transaction status
+  - DNS propagation time (can take up to 24 hours)
+  - Enclave connectivity
 
-## Future work
+## Future Work
 
-* Subdomain Managment
-* Add mechanisms for delays between setting CAA record and A record to avoid race conditions in record propagation
-  * Race condition possible between propagation of CAA and A records as records are propagated individually, so not a good idea to set them together. 
-  * A record should only be set after setting CAA record to ensure security.
-* TTL for records should be configurable
-* Expand support to ACME services apart from letsencrypt
+- Subdomain management
+- Add mechanisms for delays between setting CAA and A records to avoid race conditions in record propagation
+  - Race condition possible between propagation of CAA and A records as records are propagated individually, so not a good idea to set them together.
+  - A record should only be set after setting CAA record to ensure security.
+- TTL for records should be configurable
+- Expand support to ACME services apart from Let's Encrypt

@@ -118,13 +118,21 @@ impl DnsRecord {
             }
             TYPE_CAA => {
                 // CAA Record Format: flags(1) tag-length(1) tag value-length(2) value
-                let first_space = self.data.find(' ').ok_or_else(|| 
-                    DnsError::InvalidData("CAA record must have flags, tag, and value".to_string()))?;
-                let second_space = self.data[first_space + 1..].find(' ').map(|i| i + first_space + 1)
-                    .ok_or_else(|| DnsError::InvalidData("CAA record must have flags, tag, and value".to_string()))?;
+                let first_space = self.data.find(' ').ok_or_else(|| {
+                    DnsError::InvalidData("CAA record must have flags, tag, and value".to_string())
+                })?;
+                let second_space = self.data[first_space + 1..]
+                    .find(' ')
+                    .map(|i| i + first_space + 1)
+                    .ok_or_else(|| {
+                        DnsError::InvalidData(
+                            "CAA record must have flags, tag, and value".to_string(),
+                        )
+                    })?;
 
                 // Parse flags (usually 0 or 128)
-                let flags = self.data[..first_space].parse::<u8>()
+                let flags = self.data[..first_space]
+                    .parse::<u8>()
                     .map_err(|_| DnsError::InvalidData("Invalid CAA flags".to_string()))?;
                 data_buffer.push(flags);
 

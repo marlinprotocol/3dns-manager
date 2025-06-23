@@ -30,8 +30,10 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "8004".to_string())
         .parse::<u16>()
         .expect("PORT must be a valid port number");
-    let acme_env =
-        env::var("ACME").unwrap_or_else(|_| "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org-directory".to_string());
+    let acme_env = env::var("ACME").unwrap_or_else(|_| {
+        "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org-directory"
+            .to_string()
+    });
     let acme_services: Vec<String> = acme_env.split(',').map(|s| s.trim().to_string()).collect();
     println!("ACME services: {:?}", acme_services);
 
