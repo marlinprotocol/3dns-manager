@@ -14,6 +14,8 @@ mod ip_checker;
 mod message_signer;
 use message_signer::MessageSigner;
 
+use crate::dns_encoder::{TYPE_A, TYPE_CAA};
+
 #[derive(serde::Deserialize)]
 struct TtlParam {
     ttl: Option<u32>,
@@ -28,10 +30,8 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "8004".to_string())
         .parse::<u16>()
         .expect("PORT must be a valid port number");
-    let acme_env = env::var("ACME").unwrap_or_else(|_| {
-        "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org-directory"
-            .to_string()
-    });
+    let acme_env =
+        env::var("ACME").unwrap_or_else(|_| "acme-v02.api.letsencrypt.org-directory,acme-staging-v02.api.letsencrypt.org-directory".to_string());
     let acme_services: Vec<String> = acme_env.split(',').map(|s| s.trim().to_string()).collect();
     println!("ACME services: {:?}", acme_services);
 
@@ -156,13 +156,15 @@ async fn generate_caa_records(
         let caa_record_data = tokio::task::spawn_blocking(move || get_caa_record_data(&acme))
             .await
             .unwrap()?;
+        println!("CAA record data raw :  {}", caa_record_data);
         let caa_record = dns_encoder::DnsRecord {
             domain: domain.to_string(),
-            record_type: 257, // CAA record type
+            record_type: TYPE_CAA, // CAA record type
             class: 1,
             ttl: ttl,
-            data: caa_record_data,
+            data: caa_record_data, // CAA record data
         };
+        println!("CAA record: {:?}", caa_record);
         caa_records.push(caa_record);
     }
     Ok(caa_records)
@@ -205,28 +207,30 @@ async fn generate_encoded_dns_records(
     // Generate A record
     let a_record = dns_encoder::DnsRecord {
         domain: domain.clone(),
-        record_type: 1, // A record type
+        record_type: TYPE_A, // A record type
         class: 1,
         ttl: ttl, // Example TTL
         data: ip, // Use the fetched public IP
     };
 
     // Encode the record
-    let dns_records = vec![a_record];
+    let mut dns_records = vec![a_record];
 
-    // // Generate CAA records
-    // let caa_records = generate_caa_records(acme_services, ttl, &domain).await?;
-    // dns_records.extend(caa_records);
+    // Generate CAA records
+    let caa_records = generate_caa_records(acme_services, ttl, &domain).await?;
+    dns_records.extend(caa_records);
+
+    println!("Generated DNS records: {:?}", dns_records);
 
     let encoded_records = dns_encoder::DnsRecord::encode_dns_records(&dns_records)
-        .map_err(|e| eyre::eyre!("Failed to encode A record: {}", e))?;
-    println!("Encoded A record: {}", encoded_records);
+        .map_err(|e| eyre::eyre!("Failed to encode DNS record: {}", e))?;
+    println!("Encoded DNS record: {}", encoded_records);
 
     // Sign the encoded records
     let signature = signer
         .sign_message(&encoded_records, &domain)
         .await
-        .map_err(|e| eyre::eyre!("Failed to sign A record: {}", e))?;
+        .map_err(|e| eyre::eyre!("Failed to sign DNS records: {}", e))?;
 
     println!("Signature: {}", signature);
 

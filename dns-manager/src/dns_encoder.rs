@@ -19,12 +19,13 @@ impl fmt::Display for DnsError {
 
 impl Error for DnsError {}
 
-pub const TYPE_A: u16 = 1;     // IPv4 address
-pub const TYPE_NS: u16 = 2;    // Nameserver
+pub const TYPE_A: u16 = 1; // IPv4 address
+pub const TYPE_NS: u16 = 2; // Nameserver
 pub const TYPE_CNAME: u16 = 5; // Canonical name
-pub const TYPE_MX: u16 = 15;   // Mail exchange
-pub const TYPE_TXT: u16 = 16;  // Text
+pub const TYPE_MX: u16 = 15; // Mail exchange
+pub const TYPE_TXT: u16 = 16; // Text
 pub const TYPE_AAAA: u16 = 28; // IPv6 address
+pub const TYPE_CAA: u16 = 257; // Certification Authority Authorization
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DnsRecord {
@@ -38,7 +39,7 @@ pub struct DnsRecord {
 impl DnsRecord {
     fn encode_domain(domain: &str) -> Result<Vec<u8>, DnsError> {
         let mut buffer = Vec::new();
-        
+
         if domain.len() > 255 {
             return Err(DnsError::InvalidDomain("Domain name too long".to_string()));
         }
@@ -70,10 +71,12 @@ impl DnsRecord {
                 for octet in octets {
                     match octet.parse::<u8>() {
                         Ok(num) => data_buffer.push(num),
-                        Err(_) => return Err(DnsError::InvalidData("Invalid IPv4 octet".to_string())),
+                        Err(_) => {
+                            return Err(DnsError::InvalidData("Invalid IPv4 octet".to_string()));
+                        }
                     }
                 }
-            },
+            }
             TYPE_AAAA => {
                 // Validate and encode IPv6 address
                 for segment in self.data.split(':') {
@@ -82,32 +85,61 @@ impl DnsRecord {
                     }
                     match u16::from_str_radix(segment, 16) {
                         Ok(num) => data_buffer.extend_from_slice(&num.to_be_bytes()),
-                        Err(_) => return Err(DnsError::InvalidData("Invalid IPv6 segment".to_string())),
+                        Err(_) => {
+                            return Err(DnsError::InvalidData("Invalid IPv6 segment".to_string()));
+                        }
                     }
                 }
-            },
+            }
             TYPE_NS | TYPE_CNAME => {
                 // Encode domain name format
                 data_buffer.extend(Self::encode_domain(&self.data)?);
-            },
+            }
             TYPE_MX => {
                 // Format: 2 bytes preference, then domain name
                 let parts: Vec<&str> = self.data.split(' ').collect();
                 if parts.len() != 2 {
-                    return Err(DnsError::InvalidData("MX record must have preference and domain".to_string()));
+                    return Err(DnsError::InvalidData(
+                        "MX record must have preference and domain".to_string(),
+                    ));
                 }
-                let preference = parts[0].parse::<u16>()
+                let preference = parts[0]
+                    .parse::<u16>()
                     .map_err(|_| DnsError::InvalidData("Invalid MX preference".to_string()))?;
                 data_buffer.extend_from_slice(&preference.to_be_bytes());
                 data_buffer.extend(Self::encode_domain(parts[1])?);
-            },
+            }
             TYPE_TXT => {
                 if self.data.len() > 255 {
                     return Err(DnsError::InvalidData("TXT record too long".to_string()));
                 }
                 data_buffer.push(self.data.len() as u8);
                 data_buffer.extend_from_slice(self.data.as_bytes());
-            },
+            }
+            TYPE_CAA => {
+                // CAA Record Format: flags(1) tag-length(1) tag value-length(2) value
+                let first_space = self.data.find(' ').ok_or_else(|| 
+                    DnsError::InvalidData("CAA record must have flags, tag, and value".to_string()))?;
+                let second_space = self.data[first_space + 1..].find(' ').map(|i| i + first_space + 1)
+                    .ok_or_else(|| DnsError::InvalidData("CAA record must have flags, tag, and value".to_string()))?;
+
+                // Parse flags (usually 0 or 128)
+                let flags = self.data[..first_space].parse::<u8>()
+                    .map_err(|_| DnsError::InvalidData("Invalid CAA flags".to_string()))?;
+                data_buffer.push(flags);
+
+                // Encode tag (e.g., "issue", "issuewild", "iodef")
+                let tag = &self.data[first_space + 1..second_space];
+                if tag.len() > 255 {
+                    return Err(DnsError::InvalidData("CAA tag too long".to_string()));
+                }
+                data_buffer.push(tag.len() as u8);
+                data_buffer.extend_from_slice(tag.as_bytes());
+
+                // Encode value - rest of the string after the second space
+                let value = &self.data[second_space + 1..];
+                data_buffer.extend_from_slice(value.as_bytes());
+            }
             _ => {
                 // For unknown types, encode data as-is
                 data_buffer.extend_from_slice(self.data.as_bytes());
