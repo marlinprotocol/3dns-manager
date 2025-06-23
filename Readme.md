@@ -59,6 +59,8 @@ oyster-fe-manager/
     oyster-cvm kms-contract deploy --wallet-private-key ****
     ```
 5. **Compute the image ID:**
+
+    #### Debug : 
     ```bash
     oyster-cvm compute-image-id \
       --contract-address 0x166EeA146F559FC842D37C5899632eef8B7FB458 \
@@ -67,6 +69,17 @@ oyster-fe-manager/
       --arch amd64 \
       --preset debug
     ```
+    `Note` : Running in debug mode might expose sensitive data.
+
+    #### Production :
+    ```bash
+    oyster-cvm compute-image-id \
+      --contract-address 0x166EeA146F559FC842D37C5899632eef8B7FB458 \
+      --chain-id 42161 \
+      --docker-compose docker-compose.yml \
+      --arch amd64 \
+    ```
+
 6. **Approve the image ID in the contract:**
     ```bash
     oyster-cvm kms-contract approve \
@@ -134,6 +147,9 @@ oyster-fe-manager/
         caddy_config:
       ```
 12. **Deploy the entire setup with Oyster CVM:**
+
+    #### Debug:
+
     ```bash
     oyster-cvm deploy \
       --duration-in-minutes 180 \
@@ -148,7 +164,27 @@ oyster-fe-manager/
       --preset debug \
       --image-url https://artifacts.marlin.org/oyster/eifs/base-blue_v3.0.0_linux_amd64.eif
     ```
+
+    `Note` : Running in debug mode might expose sensitive data.
+
+    #### Production:
+
+    ```bash
+      oyster-cvm deploy \
+      --duration-in-minutes 180 \
+      --docker-compose ./docker-compose.yml \
+      --wallet-private-key *** \
+      --arch amd64 \
+      --instance-type c5n.xlarge \
+      --contract-address <KMS_VERIFIER_CONTRACT> \
+      --chain-id 42161 \
+      --region us-west-2
+    ```
+
     **Note:** Note down the IP address returned by the Oyster CVM CLI. You will need this in the next step.
+
+    **Note:** Make sure the computed image ID returned by this command matches the computed image ID from Step 5.
+    
 13. **Set DNS records with the DNS client:**
     ```bash
     dns-client set-dns --domain letsgoo.tech --enclave-ip <ENCLAVE_IP> --wallet-private-key ****
