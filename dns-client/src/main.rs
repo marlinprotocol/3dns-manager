@@ -48,7 +48,7 @@ enum Commands {
         domain: String,
 
         /// Delegate wallet address
-        #[arg(long)]
+        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
         delegate_wallet_address: String,
 
         /// Smart contract address
@@ -68,7 +68,11 @@ enum Commands {
         domain: String,
 
         /// New owner wallet address
-        #[arg(long, short)]
+        #[arg(
+            long,
+            short,
+            default_value = "0xB5e7d42440738df2270749E336329fA1A360C313"
+        )]
         new_owner_wallet_address: String,
 
         /// Smart contract address for domain controller
@@ -107,13 +111,9 @@ enum Commands {
         #[arg(long)]
         domain: String,
 
-        /// KMS signer address
+        /// KMS contract address
         #[arg(long)]
-        kms_signer_address: String,
-
-        /// Proof
-        #[arg(long)]
-        proof: String,
+        kms_contract_address: String,
 
         /// Smart contract address
         #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
@@ -312,15 +312,13 @@ async fn main() {
         }
         Some(Commands::SetKmsKey {
             domain,
-            kms_signer_address,
-            proof,
+            kms_contract_address,
             contract_address,
             wallet_private_key,
         }) => {
             if let Err(e) = commands::handle_set_kms_key(
                 domain,
-                kms_signer_address,
-                proof,
+                kms_contract_address,
                 contract_address,
                 wallet_private_key,
             )

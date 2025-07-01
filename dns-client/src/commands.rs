@@ -164,8 +164,7 @@ pub async fn handle_set_kms(
 /// Handles the "set kms key" command
 pub async fn handle_set_kms_key(
     domain_id: &str,
-    kms_signer_address: &str,
-    proof: &str,
+    kms_contract_address: &str,
     contract_address: &str,
     wallet_private_key: &str,
 ) -> Result<()> {
@@ -174,8 +173,7 @@ pub async fn handle_set_kms_key(
     // Call the contract interaction function
     contract_interaction::set_kms_key(
         domain_id.to_string(),
-        kms_signer_address.to_string(),
-        proof.to_string(),
+        kms_contract_address.to_string(),
         contract_address.to_string(),
         rpc_url.to_string(),
         wallet_private_key.to_string(),

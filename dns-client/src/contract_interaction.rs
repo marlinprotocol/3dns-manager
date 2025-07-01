@@ -9,6 +9,7 @@ use alloy::{
 };
 use eyre::Result;
 use hex;
+use reqwest;
 use url::Url;
 
 sol!(
@@ -326,19 +327,45 @@ pub async fn set_kms_contract(
 
 pub async fn set_kms_key(
     domain: String,
-    kms_signer_address: String,
-    proof: String,
+    kms_contract_address: String,
     contract_address: String,
     rpc_url: String,
     wallet_private_key: String,
 ) -> Result<()> {
     // Create domain id by hashing the domain
     let domain_id = namehash(&domain);
-    println!("Domain ID: {:?}", domain_id);
+
+    // Make API call to derive KMS signer address
+    let api_url = format!(
+        "http://arbone-v4.kms.box:1101/derive/secp256k1/address/ethereum?address={}&path=DNS-RECORD-SIGNER-{}",
+        kms_contract_address, domain_id
+    );
+
+    let client = reqwest::Client::new();
+    let response = client.get(&api_url).send().await?;
+
+    if !response.status().is_success() {
+        return Err(eyre::eyre!(
+            "API call failed with status: {}",
+            response.status()
+        ));
+    }
+
+    // Extract proof from response header
+    let proof = response
+        .headers()
+        .get("x-marlin-kms-signature")
+        .ok_or_else(|| eyre::eyre!("Missing x-marlin-kms-signature header"))?
+        .to_str()
+        .map_err(|_| eyre::eyre!("Invalid x-marlin-kms-signature header"))?
+        .to_string();
+
+    // Parse response body to get KMS signer address
+    let kms_signer_address = response.text().await?;
 
     // Decode proof to bytes
-    let proof_bytes = Bytes::from(hex::decode(proof).expect("Failed to decode proof"));
-    println!("Proof bytes: {:?}", proof_bytes);
+    let proof_bytes =
+        Bytes::from(hex::decode(proof).map_err(|_| eyre::eyre!("Failed to decode proof"))?);
 
     // Decode private key
     let private_key =
