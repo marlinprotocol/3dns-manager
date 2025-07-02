@@ -48,11 +48,11 @@ oyster-fe-manager/
 1. **Buy a domain at [3dns](https://3dns.box/).**
 2. **Transfer the domain to the domain manager:**
     ```bash
-    dns-client transfer-domain --domain letsgoo.tech --new-owner-wallet-address <DOMAIN_MANAGER_ADDRESS> --wallet-private-key *****
+    dns-client transfer-domain --domain letsgoo.tech --wallet-private-key *****
     ```
 3. **Set WHOIS delegate:**
     ```bash
-    dns-client set-whois --domain letsgoo.tech --delegate-wallet-address <DOMAIN_MANAGER_ADDRESS> --wallet-private-key *****
+    dns-client set-whois --domain letsgoo.tech --wallet-private-key *****
     ```
 4. **Deploy KMS verifier contract:**
     ```bash
@@ -87,26 +87,15 @@ oyster-fe-manager/
       --image-id <image_id> \
       --contract-address <address>
     ```
-7. **Compute the domain ID:**
-    ```bash
-    dns-client compute-domain-id --domain letsgoo.tech
-    ```
-8. **Get the proof signature:**
-    ```bash
-    curl --location 'arbone-v4.kms.box:1101/derive/secp256k1/address/ethereum?address=<address>&path=DNS-RECORD-SIGNER-<domain-id>'
-    ```
-    **Note:**
-    - Note down the `kms-signer-address` from the response body.
-    - Note down the `x-marlin-kms-signature` from the response header.
-9. **Set the KMS keys:**
+
+7. **Set the KMS keys:**
     ```bash
     dns-client set-kms-key \
       --domain letsgoo.tech \
-      --kms-signer-address <KMS_SIGNER_ADDRESS> \
-      --proof <KMS_SIGNATURE> \
+      --kms-contract-address <KMS_CONTRACT_ADDRESS> \
       --wallet-private-key ******
     ```
-10. **Build and push Docker images:**
+8. **Build and push Docker images:**
     - Build and push your website image:
       ```bash
       docker build -t <your_dockerhub_username>/oyster-fe-kit:latest .
@@ -118,7 +107,7 @@ oyster-fe-manager/
       docker build -t <your_dockerhub_username>/dns-manager:latest .
       docker push <your_dockerhub_username>/dns-manager:latest
       ```
-11. **Modify configuration files:**
+9. **Modify configuration files:**
     - In `caddy.json`, set:
       ```json
       "host": ["<YOUR_DOMAIN_NAME>"]
@@ -138,7 +127,6 @@ oyster-fe-manager/
           network_mode: host
           environment:
             - DOMAIN_NAME=<DOMAIN_NAME>
-            - DOMAIN_ID=<DOMAIN_ID>
           volumes:
             - caddy_data:/data
 
@@ -146,7 +134,7 @@ oyster-fe-manager/
         caddy_data:
         caddy_config:
       ```
-12. **Deploy the entire setup with Oyster CVM:**
+10. **Deploy the entire setup with Oyster CVM:**
 
     #### Debug:
 
@@ -185,11 +173,11 @@ oyster-fe-manager/
 
     **Note:** Make sure the computed image ID returned by this command matches the computed image ID from Step 5.
     
-13. **Set DNS records with the DNS client:**
+11. **Set DNS records with the DNS client:**
     ```bash
     dns-client set-dns --domain letsgoo.tech --enclave-ip <ENCLAVE_IP> --wallet-private-key ****
     ```
-14. **Wait for DNS propagation:**
+12. **Wait for DNS propagation:**
     It may take a few minutes for DNS propagation. Once complete, your site should be available at your domain.
 
 ## Important Notes

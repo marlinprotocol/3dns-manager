@@ -41,15 +41,15 @@ enum Commands {
     },
 
     /// Set WHOIS delegation address
-    #[command(name = "set-whois")]
-    SetWhois {
+    #[command(name = "set-whois-delegate")]
+    SetWhoIsDelegate {
         /// Domain ID
         #[arg(long)]
         domain: String,
 
-        /// Delegate wallet address
-        #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
-        delegate_wallet_address: String,
+        /// Delegate wallet address (optional - uses own wallet address if not provided)
+        #[arg(long)]
+        delegate_wallet_address: Option<String>,
 
         /// Smart contract address
         #[arg(long, default_value = "0xB5e7d42440738df2270749E336329fA1A360C313")]
@@ -259,7 +259,7 @@ async fn main() {
                 eprintln!("Error setting DNS records: {}", e);
             }
         }
-        Some(Commands::SetWhois {
+        Some(Commands::SetWhoIsDelegate {
             domain,
             delegate_wallet_address,
             contract_address,
