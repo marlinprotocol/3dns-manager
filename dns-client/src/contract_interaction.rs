@@ -52,17 +52,12 @@ pub async fn set_whois_delegatee(
     contract_address: String,
     rpc_url: String,
     wallet_private_key: String,
-    delegate_address: String,
+    delegate_address: &Option<String>,
 ) -> Result<()> {
     // Create domain id by hashing the domain
     // let domain_id = keccak256(domain.as_bytes());
     let domain_id = namehash(&domain);
     println!("Domain ID: {:?}", domain_id);
-
-    // Parse delegate address
-    let delegatee = delegate_address
-        .parse::<Address>()
-        .expect("Failed to parse delegate address");
 
     // Decode private key
     let private_key =
@@ -71,7 +66,17 @@ pub async fn set_whois_delegatee(
     // Create signer
     let signer = PrivateKeySigner::from_bytes(&private_key)
         .expect("Failed to create signer from private key");
+    let signer_address = &signer.address();
     let wallet = EthereumWallet::from(signer);
+
+    let delegatee = match delegate_address {
+        Some(addr) => addr
+            .parse::<Address>()
+            .expect("Failed to parse delegate address"),
+        None => *signer_address, // Use zero address if no delegate is provided
+    };
+
+    println!("Delegatee address: {:?}", delegatee);
 
     // Create provider
     let provider = ProviderBuilder::new()

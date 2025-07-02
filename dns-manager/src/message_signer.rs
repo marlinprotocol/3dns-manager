@@ -32,7 +32,9 @@ impl MessageSigner {
     }
 
     pub async fn init(&mut self) -> Result<()> {
-        let domain_id = env::var("DOMAIN_ID").context("DOMAIN_ID environment variable not set")?;
+        let domain_name = env::var("DOMAIN_NAME").context("DOMAIN_NAME environment variable not set")?;
+
+        let domain_id = namehash(&domain_name);
 
         let path = format!(
             "http://127.0.0.1:1101/derive/secp256k1?path=DNS-RECORD-SIGNER-{}",
